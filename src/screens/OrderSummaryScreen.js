@@ -12,7 +12,7 @@ import { supabase } from '../utils/supabase'
 import { CartContext } from '../context/CartContext'
 
 export default function OrderSummaryScreen({ route, navigation }) {
-  const { items: initialItems, total: initialTotal } = route.params
+  const { items: initialItems, total: initialTotal, tax: initialTax, tip: initialTipValue } = route.params
   console.log("initial items", initialItems);
   const { clearCart } = useContext(CartContext)
 
@@ -44,7 +44,9 @@ export default function OrderSummaryScreen({ route, navigation }) {
       name:         customerName,
       user_id:      null,
       method:       method,
-      paymentMethod: paymentMethod
+      paymentMethod: paymentMethod,
+      tax:           index === 0 ? initialTax : null,
+      tip:           index === 0 ? initialTipValue : null
     }))
 
     const { data, error } = await supabase
@@ -70,6 +72,9 @@ export default function OrderSummaryScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
+       <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
       <Text style={styles.heading}>Review Your Order</Text>
 
       <FlatList
@@ -206,7 +211,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
         onPress={handlePayment}
         disabled={
           !customerName.trim() ||
-          !address.trim() ||
+          !method ||
           !paymentMethod ||
           loading
         }
@@ -221,6 +226,16 @@ export default function OrderSummaryScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container:  { flex: 1, padding: 16, backgroundColor: "white" },
+  backBtn: {
+    marginTop: 40,
+    marginBottom: 15,
+    paddingHorizontal: 5,
+  },
+  backText: {
+    color: '#a8e4a0',
+    fontSize: 16,
+    fontWeight: '600',
+  },    
   heading:    { fontSize: 22, fontWeight: '700', marginBottom: 12 },
   list:       { maxHeight: 200, marginBottom: 12 },
   row:        { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
