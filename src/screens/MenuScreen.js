@@ -8,41 +8,42 @@ import {
   StyleSheet,
   Platform,
   Modal,
+  Image,
+  ScrollView,
 } from "react-native"
 import { CartContext } from "../context/CartContext"
+import IcedLatteImg from "../../assets/iced_latte.png"
 
-// Professional coffee menu with hot/iced options
 const COFFEE_MENU = [
-  { id: "1", name: "Iced Latte",        price: 4.5,  description: "Smooth espresso with cold milk over ice" },
-  { id: "2", name: "Hot Latte",         price: 4,    description: "Rich espresso with steamed milk and light foam" },
-  { id: "3", name: "Iced Matcha Latte", price: 4.75, description: "Refreshing matcha with cold milk over ice" },
-  { id: "4", name: "Hot Matcha Latte",  price: 4.25, description: "Premium matcha powder with steamed milk" },
-  { id: "5", name: "Iced Americano",    price: 4,    description: "Espresso shots with cold water over ice" },
-  { id: "6", name: "Hot Americano",     price: 3.5,  description: "Bold espresso shots with hot water" },
-  { id: "7", name: "Iced Cappuccino",   price: 4.2,  description: "Espresso with cold milk and cold foam over ice" },
-  { id: "8", name: "Hot Cappuccino",    price: 3.75, description: "Equal parts espresso, steamed milk, and foam" },
-  { id: "9", name: "Espresso",          price: 3,    description: "Plain espresso"},
+  { id: "1", name: "Iced Latte", price: 4.5, description: "Smooth espresso with cold milk over ice", image: IcedLatteImg },
+  { id: "2", name: "Hot Latte", price: 4, description: "Rich espresso with steamed milk and light foam", image: IcedLatteImg },
+  { id: "3", name: "Iced Matcha Latte", price: 4.75, description: "Refreshing matcha with cold milk over ice", image: IcedLatteImg },
+  { id: "4", name: "Hot Matcha Latte", price: 4.25, description: "Premium matcha powder with steamed milk", image: IcedLatteImg },
+  { id: "5", name: "Iced Americano", price: 4, description: "Espresso shots with cold water over ice", image: IcedLatteImg },
+  { id: "6", name: "Hot Americano", price: 3.5, description: "Bold espresso shots with hot water", image: IcedLatteImg },
+  { id: "7", name: "Iced Cappuccino", price: 4.2, description: "Espresso with cold milk and cold foam over ice", image: IcedLatteImg },
+  { id: "8", name: "Hot Cappuccino", price: 3.75, description: "Equal parts espresso, steamed milk, and foam", image: IcedLatteImg },
+  { id: "9", name: "Espresso", price: 3, description: "Plain espresso", image: IcedLatteImg },
 ]
+
+const GROUPED_MENU = {
+  "Matcha Drinks": COFFEE_MENU.filter(item => item.name.toLowerCase().includes("matcha")),
+  "Iced Drinks": COFFEE_MENU.filter(item => item.name.toLowerCase().startsWith("iced") && !item.name.toLowerCase().includes("matcha")),
+  "Hot Drinks": COFFEE_MENU.filter(item => (item.name.toLowerCase().startsWith("hot") || item.name.toLowerCase() === "espresso") && !item.name.toLowerCase().includes("matcha")),
+}
 
 export default function MenuScreen({ navigation }) {
   const { addToCart } = useContext(CartContext)
-
-  // Modal state
   const [modalVisible, setModalVisible] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
+  const [sugarChoice, setSugarChoice] = useState(null)
+  const [milkChoice, setMilkChoice] = useState(null)
+  const [quantity, setQuantity] = useState(1)
 
-  // Choice state
-  const [sugarChoice, setSugarChoice] = useState(null)   // true = sugar, false = no sugar
-  const [milkChoice, setMilkChoice] = useState(null)     // "milk" or "oat"
-  const [quantity, setQuantity] = useState(1)            // number, starts at 1
-
-  // ID sets for behavior
-  const espressoIds  = new Set(["9"])
+  const espressoIds = new Set(["9"])
   const americanoIds = new Set(["5", "6"])
-  const milkIds      = new Set(["1", "2", "3", "4", "7", "8"])
+  const milkIds = new Set(["1", "2", "3", "4", "7", "8"])
 
-
-  // When “Add” is tapped: always open modal, resetting state
   const onItemPress = (item) => {
     setSelectedItem(item)
     setSugarChoice(null)
@@ -51,30 +52,20 @@ export default function MenuScreen({ navigation }) {
     setModalVisible(true)
   }
 
-  // Final “Add to Cart” logic:
-  // - Espresso: only quantity
-  // - Americano: require sugarChoice !== null
-  // - Latte/Matcha/Cappuccino: require sugarChoice !== null AND milkChoice !== null
-  // In all cases, disabled if quantity === 0
   const handleAddToCart = () => {
     if (!selectedItem || quantity === 0) return
-
     let payload = { ...selectedItem, sugar: null, milkType: null, quantity }
-
     if (espressoIds.has(selectedItem.id)) {
-      // no additional flags
+      // No options for espresso
     } else if (americanoIds.has(selectedItem.id)) {
       if (sugarChoice === null) return
       payload.sugar = sugarChoice
     } else if (milkIds.has(selectedItem.id)) {
       if (sugarChoice === null || milkChoice === null) return
-      payload.sugar    = sugarChoice
+      payload.sugar = sugarChoice
       payload.milkType = milkChoice
     }
-
     addToCart(payload)
-
-    // reset modal state
     setModalVisible(false)
     setSelectedItem(null)
     setSugarChoice(null)
@@ -82,7 +73,6 @@ export default function MenuScreen({ navigation }) {
     setQuantity(1)
   }
 
-  // Quantity adjustment (allow zero)
   const decrementQty = () => {
     setQuantity((q) => (q > 0 ? q - 1 : 0))
   }
@@ -91,15 +81,11 @@ export default function MenuScreen({ navigation }) {
   }
 
   const renderItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.card}
-      activeOpacity={0.8}
-    >
+    <TouchableOpacity style={styles.card} activeOpacity={0.8} onPress={() => onItemPress(item)}>
       <View style={styles.cardContent}>
+        <Image source={item.image} style={styles.image} />
         <View style={styles.itemInfo}>
-          <View style={styles.nameRow}>
-            <Text style={styles.name}>{item.name}</Text>
-          </View>
+          <Text style={styles.name}>{item.name}</Text>
           <Text style={styles.description}>{item.description}</Text>
           <Text style={styles.price}>${item.price.toFixed(2)}</Text>
         </View>
@@ -121,16 +107,24 @@ export default function MenuScreen({ navigation }) {
       </View>
 
       <View style={styles.subHeader}>
-        <Text style={styles.subtitle}>Note: Hot drinks 12 oz, Iced drinks 16 oz.</Text>
+        <Text style={styles.subtitle}>Note: Hot drinks 12 oz (355 ml), Iced drinks 16 oz (473 ml).</Text>
       </View>
 
-      <FlatList
-        data={COFFEE_MENU}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContainer}
-        showsVerticalScrollIndicator={false}
-      />
+      <ScrollView style={styles.menuSection}>
+        {Object.entries(GROUPED_MENU).map(([category, items]) => (
+          <View key={category} style={{ marginBottom: 24 }}>
+            <Text style={styles.sectionTitle}>{category}</Text>
+            <FlatList
+              data={items}
+              horizontal
+              keyExtractor={(item) => item.id}
+              renderItem={renderItem}
+              contentContainerStyle={{ paddingHorizontal: 12 }}
+              showsHorizontalScrollIndicator={false}
+            />
+          </View>
+        ))}
+      </ScrollView>
 
       <TouchableOpacity
         style={styles.cartButton}
@@ -140,217 +134,120 @@ export default function MenuScreen({ navigation }) {
         <Text style={styles.cartButtonText}>View Cart</Text>
       </TouchableOpacity>
 
-      {/* Modal: Espresso / Americano / Latte/Matcha/Cappuccino */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {selectedItem ? selectedItem.name : ""}
-            </Text>
-            <Text style={styles.modalPrice}>
-              {selectedItem ? `$${selectedItem.price.toFixed(2)}` : ""}
-            </Text>
+      {modalVisible && (
+        <Modal
+          visible={modalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>{selectedItem?.name}</Text>
+              <Text style={styles.modalPrice}>{selectedItem ? `$${selectedItem.price.toFixed(2)}` : ""}</Text>
 
-            {/* Americano: show Sugar only */}
-            {selectedItem && americanoIds.has(selectedItem.id) && (
-              <>
-                <Text style={styles.modalSubtitle}>Sugar?</Text>
-                <View style={styles.choiceRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.choiceButton,
-                      sugarChoice === true && styles.choiceButtonSelected,
-                    ]}
-                    onPress={() => setSugarChoice(true)}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
-                        styles.choiceText,
-                        sugarChoice === true && styles.choiceTextSelected,
-                      ]}
+              {selectedItem && americanoIds.has(selectedItem.id) && (
+                <>
+                  <Text style={styles.modalSubtitle}>Sugar?</Text>
+                  <View style={styles.choiceRow}>
+                    <TouchableOpacity
+                      style={[styles.choiceButton, sugarChoice === true && styles.choiceButtonSelected]}
+                      onPress={() => setSugarChoice(true)}
                     >
-                      Sugar
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.choiceButton,
-                      sugarChoice === false && styles.choiceButtonSelected,
-                    ]}
-                    onPress={() => setSugarChoice(false)}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
-                        styles.choiceText,
-                        sugarChoice === false && styles.choiceTextSelected,
-                      ]}
+                      <Text style={[styles.choiceText, sugarChoice === true && styles.choiceTextSelected]}>Sugar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.choiceButton, sugarChoice === false && styles.choiceButtonSelected]}
+                      onPress={() => setSugarChoice(false)}
                     >
-                      No Sugar
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+                      <Text style={[styles.choiceText, sugarChoice === false && styles.choiceTextSelected]}>No Sugar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
 
-            {/* Latte/Matcha/Cappuccino: show Sugar + Milk */}
-            {selectedItem && milkIds.has(selectedItem.id) && (
-              <>
-                <Text style={styles.modalSubtitle}>Sugar?</Text>
-                <View style={styles.choiceRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.choiceButton,
-                      sugarChoice === true && styles.choiceButtonSelected,
-                    ]}
-                    onPress={() => setSugarChoice(true)}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
-                        styles.choiceText,
-                        sugarChoice === true && styles.choiceTextSelected,
-                      ]}
+              {selectedItem && milkIds.has(selectedItem.id) && (
+                <>
+                  <Text style={styles.modalSubtitle}>Sugar?</Text>
+                  <View style={styles.choiceRow}>
+                    <TouchableOpacity
+                      style={[styles.choiceButton, sugarChoice === true && styles.choiceButtonSelected]}
+                      onPress={() => setSugarChoice(true)}
                     >
-                      Sugar
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.choiceButton,
-                      sugarChoice === false && styles.choiceButtonSelected,
-                    ]}
-                    onPress={() => setSugarChoice(false)}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
-                        styles.choiceText,
-                        sugarChoice === false && styles.choiceTextSelected,
-                      ]}
+                      <Text style={[styles.choiceText, sugarChoice === true && styles.choiceTextSelected]}>Sugar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.choiceButton, sugarChoice === false && styles.choiceButtonSelected]}
+                      onPress={() => setSugarChoice(false)}
                     >
-                      No Sugar
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                      <Text style={[styles.choiceText, sugarChoice === false && styles.choiceTextSelected]}>No Sugar</Text>
+                    </TouchableOpacity>
+                  </View>
 
-                <Text style={styles.modalSubtitle}>Milk Type?</Text>
-                <View style={styles.choiceRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.choiceButton,
-                      milkChoice === "milk" && styles.choiceButtonSelected,
-                    ]}
-                    onPress={() => setMilkChoice("milk")}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
-                        styles.choiceText,
-                        milkChoice === "milk" && styles.choiceTextSelected,
-                      ]}
+                  <Text style={styles.modalSubtitle}>Milk Type?</Text>
+                  <View style={styles.choiceRow}>
+                    <TouchableOpacity
+                      style={[styles.choiceButton, milkChoice === "milk" && styles.choiceButtonSelected]}
+                      onPress={() => setMilkChoice("milk")}
                     >
-                      Organic Milk
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.choiceButton,
-                      milkChoice === "oat" && styles.choiceButtonSelected,
-                    ]}
-                    onPress={() => setMilkChoice("oat")}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
-                        styles.choiceText,
-                        milkChoice === "oat" && styles.choiceTextSelected,
-                      ]}
+                      <Text style={[styles.choiceText, milkChoice === "milk" && styles.choiceTextSelected]}>Organic Milk</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.choiceButton, milkChoice === "oat" && styles.choiceButtonSelected]}
+                      onPress={() => setMilkChoice("oat")}
                     >
-                      Oat Milk
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+                      <Text style={[styles.choiceText, milkChoice === "oat" && styles.choiceTextSelected]}>Oat Milk</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
 
-            {/* Quantity selector (all types) */}
-            <Text style={[styles.modalSubtitle, { marginTop: 8 }]}>
-              Quantity
-            </Text>
-            <View style={styles.quantityRow}>
+              <Text style={[styles.modalSubtitle, { marginTop: 8 }]}>Quantity</Text>
+              <View style={styles.quantityRow}>
+                <TouchableOpacity style={styles.qtyButton} onPress={decrementQty}>
+                  <Text style={styles.qtyText}>–</Text>
+                </TouchableOpacity>
+                <Text style={styles.qtyNumber}>{quantity}</Text>
+                <TouchableOpacity style={styles.qtyButton} onPress={incrementQty}>
+                  <Text style={styles.qtyText}>+</Text>
+                </TouchableOpacity>
+              </View>
+
               <TouchableOpacity
-                style={styles.qtyButton}
-                onPress={decrementQty}
-                activeOpacity={0.8}
+                style={[
+                  styles.addToCartButton,
+                  quantity === 0 ||
+                  (selectedItem && americanoIds.has(selectedItem.id) && sugarChoice === null) ||
+                  (selectedItem && milkIds.has(selectedItem.id) && (sugarChoice === null || milkChoice === null))
+                    ? styles.addToCartButtonDisabled
+                    : null
+                ]}
+                onPress={handleAddToCart}
+                disabled={
+                  quantity === 0 ||
+                  (selectedItem && americanoIds.has(selectedItem.id) && sugarChoice === null) ||
+                  (selectedItem && milkIds.has(selectedItem.id) && (sugarChoice === null || milkChoice === null))
+                }
               >
-                <Text style={styles.qtyText}>–</Text>
+                <Text style={styles.addToCartText}>Add to Cart</Text>
               </TouchableOpacity>
-              <Text style={styles.qtyNumber}>{quantity}</Text>
+
               <TouchableOpacity
-                style={styles.qtyButton}
-                onPress={incrementQty}
-                activeOpacity={0.8}
+                style={styles.cancelButton}
+                onPress={() => {
+                  setModalVisible(false)
+                  setSelectedItem(null)
+                  setSugarChoice(null)
+                  setMilkChoice(null)
+                  setQuantity(1)
+                }}
               >
-                <Text style={styles.qtyText}>+</Text>
+                <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
             </View>
-
-            {/* Add to Cart button */}
-            <TouchableOpacity
-              style={[
-                styles.addToCartButton,
-                // disable if quantity === 0
-                quantity === 0 ||
-                // disable if Americano and no sugar chosen
-                (selectedItem &&
-                  americanoIds.has(selectedItem.id) &&
-                  sugarChoice === null) ||
-                // disable if Latte/Matcha/Cappuccino and either sugar or milk not chosen
-                (selectedItem &&
-                  milkIds.has(selectedItem.id) &&
-                  (sugarChoice === null || milkChoice === null))
-                  ? styles.addToCartButtonDisabled
-                  : {}
-              ]}
-              onPress={handleAddToCart}
-              activeOpacity={0.8}
-              disabled={
-                quantity === 0 ||
-                (selectedItem &&
-                  americanoIds.has(selectedItem.id) &&
-                  sugarChoice === null) ||
-                (selectedItem &&
-                  milkIds.has(selectedItem.id) &&
-                  (sugarChoice === null || milkChoice === null))
-              }
-            >
-              <Text style={styles.addToCartText}>Add to Cart</Text>
-            </TouchableOpacity>
-
-            {/* Cancel */}
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => {
-                setModalVisible(false)
-                setSelectedItem(null)
-                setSugarChoice(null)
-                setMilkChoice(null)
-                setQuantity(1)
-              }}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
     </View>
   )
 }
@@ -373,104 +270,94 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  subHeader: {
-    paddingVertical: 20,                // gives some vertical padding
-    paddingHorizontal: 12,             // gives horizontal padding
-    alignItems: 'center',              // center children horizontally
-    borderBottomWidth: 1,              // 1‐pixel bottom border
-    borderBottomColor: 'rgba(0, 0, 0, 0.09)', // semi‐transparent black
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
-    fontStyle: 'italic',
-    textAlign: 'center',               // center text inside
-  },
   headerTitle: {
     fontSize: 32,
     color: "white",
     textAlign: "center",
     ...Platform.select({
-      ios: {
-        fontFamily: "AvenirNext-Bold",
-        fontWeight: "500",
-      },
-      android: {
-        fontFamily: "sans-serif-condensed",
-        fontWeight: "normal",
-      },
-      web: {
-        fontFamily: "Segoe UI Black, Arial Black, sans-serif",
-        fontWeight: "500",
-      },
-      default: {
-        fontFamily: "System",
-        fontWeight: "800",
-      },
+      ios: { fontFamily: "AvenirNext-Bold", fontWeight: "500" },
+      android: { fontFamily: "sans-serif-condensed", fontWeight: "normal" },
+      web: { fontFamily: "Segoe UI Black, Arial Black, sans-serif", fontWeight: "500" },
+      default: { fontFamily: "System", fontWeight: "800" },
     }),
   },
-  listContainer: {
-    padding: 16,
-    paddingBottom: 100,
+  subHeader: {
+    paddingVertical: 20,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0, 0, 0, 0.09)",
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "#666",
+    fontStyle: "italic",
+    textAlign: "center",
+  },
+  menuSection: {
+    paddingTop: 12,
+    paddingBottom: 120,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#2c1810",
+    marginLeft: 16,
+    marginBottom: 8,
   },
   card: {
     backgroundColor: "#fff",
-    marginBottom: 16,
+    marginRight: 12,
     borderRadius: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 4,
+    elevation: 3,
+    width: 220,
   },
   cardContent: {
-    padding: 20,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    padding: 12,
+  },
+  image: {
+    width: "100%",
+    height: 120,
+    borderRadius: 8,
+    marginBottom: 10,
   },
   itemInfo: {
-    flex: 1,
-    marginRight: 16,
-  },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
     marginBottom: 8,
   },
   name: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
     color: "#2c1810",
-    flex: 1,
+    marginBottom: 4,
   },
   description: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#666",
-    marginBottom: 8,
-    lineHeight: 20,
+    marginBottom: 4,
   },
   price: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 16,
+    fontWeight: "600",
     color: "#6b4a3e",
   },
   addButton: {
+    position: "absolute",
+    top: 8,
+    right: 8,
     backgroundColor: "#a8e4a0",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 25,
-    minWidth: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: "center",
-    shadowColor: "#6b4a3e",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    justifyContent: "center",
   },
   addButtonText: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: 20,
     fontWeight: "600",
   },
   cartButton: {
@@ -492,8 +379,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-
-  // ---- Modal styles ----
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -535,7 +420,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
     width: "100%",
     marginBottom: 16,
-    marginTop: 10
+    marginTop: 10,
   },
   choiceButton: {
     backgroundColor: "#e0e0e0",
