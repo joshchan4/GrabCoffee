@@ -1,134 +1,300 @@
-import React, { useContext } from 'react';
+// CartScreen.js
+
+import React, { useContext, useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
   FlatList,
   TouchableOpacity,
   StyleSheet,
+  Animated,
+  TextInput,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { CartContext } from '../context/CartContext';
+import * as Haptics from 'expo-haptics';
+import { Swipeable } from 'react-native-gesture-handler';
 
 export default function CartScreen({ navigation }) {
-  // Assume CartContext now provides:
-  // items: array of { id, name, price, sugar, milkType, quantity }
-  // clearCart(): removes all items
-  // updateItemQuantity(itemId, newQuantity): updates quantity
-  // removeItem(itemId): removes item entirely
   const {
     items,
-    clearCart,
     updateItemQuantity,
     removeItem,
   } = useContext(CartContext);
 
-  // Total = sum of price * quantity
-  const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const [scrollOffset, setScrollOffset] = useState(0);
+  const [selectedTip, setSelectedTip] = useState(0);
+  const [customTip, setCustomTip] = useState('');
+  const flatListRef = useRef(null);
+  const animatedTotal = useRef(new Animated.Value(0)).current;
+  const holdInterval = useRef(null);
+  const holdTimeout = useRef(null);
 
-  // Render when cart is empty
-  if (items.length === 0) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.emptyText}>Your cart is empty.</Text>
-      </View>
-    );
-  }
+  const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const tipValue = selectedTip === 'custom' ? parseFloat(customTip || 0) : (selectedTip / 100) * subtotal;
+  const tax = subtotal * 0.13;
+  const total = subtotal + tipValue + tax;
 
-  // Render each item row with quantity controls and remove button
-  const renderItem = ({ item, index }) => {
+  useEffect(() => {
+    Animated.timing(animatedTotal, {
+      toValue: total,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [total]);
+
+  const startHold = (action) => {
+    action();
+    holdTimeout.current = setTimeout(() => {
+      holdInterval.current = setInterval(action, 150);
+    }, 1000);
+  };
+
+  const stopHold = () => {
+    if (holdTimeout.current) clearTimeout(holdTimeout.current);
+    if (holdInterval.current) clearInterval(holdInterval.current);
+    holdTimeout.current = null;
+    holdInterval.current = null;
+  };
+
+  const renderItem = ({ item }) => {
     const subtotal = item.price * item.quantity;
+    const scaleAnim = new Animated.Value(1);
+
+    const bounce = () => {
+      scaleAnim.setValue(0.9);
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+      }).start();
+    };    
 
     return (
-      <View style={styles.itemContainer}>
-        <View style={styles.itemInfo}>
-          <Text style={styles.itemName}>{item.name}</Text>
-          {item.sugar != null && (
-            <Text style={styles.itemDetail}>
-              Sugar: {item.sugar ? 'Yes' : 'No'}
-            </Text>
-          )}
-          {item.milkType && (
-            <Text style={styles.itemDetail}>
-              Milk: {item.milkType === 'milk' ? 'Organic' : 'Oat'}
-            </Text>
-          )}
-        </View>
-
-        <View style={styles.quantitySection}>
+      <Swipeable
+        renderRightActions={() => (
           <TouchableOpacity
-            style={styles.qtyButton}
+            style={styles.swipeRemove}
             onPress={() => {
-              const newQty = item.quantity - 1;
-              if (newQty <= 0) {
-                removeItem(item.id);
-              } else {
-                updateItemQuantity(item.id, newQty);
-              }
+              Haptics.impactAsync();
+              removeItem(item.id);
             }}
-          >
-            <Text style={styles.qtyText}>–</Text>
-          </TouchableOpacity>
-
-          <Text style={styles.qtyNumber}>{item.quantity}</Text>
-
-          <TouchableOpacity
-            style={styles.qtyButton}
-            onPress={() => updateItemQuantity(item.id, item.quantity + 1)}
-          >
-            <Text style={styles.qtyText}>+</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.priceSection}>
-          <Text style={styles.itemPrice}>${subtotal.toFixed(2)}</Text>
-          <TouchableOpacity
-            style={styles.removeButton}
-            onPress={() => removeItem(item.id)}
           >
             <Text style={styles.removeText}>Remove</Text>
           </TouchableOpacity>
+        )}
+      >
+        <View style={styles.itemContainer}>
+          <View style={styles.itemInfo}>
+            <Text style={styles.itemName}>{item.name}</Text>
+            {item.sugar != null && (
+              <Text style={styles.itemDetail}>
+                Sugar: {item.sugar ? 'Yes' : 'No'}
+              </Text>
+            )}
+            {item.milkType && (
+              <Text style={styles.itemDetail}>
+                Milk: {item.milkType === 'milk' ? 'Organic' : 'Oat'}
+              </Text>
+            )}
+          </View>
+
+          <View style={styles.quantitySection}>
+            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+              <TouchableOpacity
+                style={styles.qtyButton}
+                onPressIn={() => {
+                  Haptics.impactAsync();
+                  bounce();
+                  startHold(() => {
+                    const newQty = item.quantity - 1;
+                    if (newQty <= 0) {
+                      removeItem(item.id);
+                    } else {
+                      updateItemQuantity(item.id, newQty);
+                    }
+                  });
+                }}
+                onPressOut={stopHold}
+              >
+                <Text style={styles.qtyText}>–</Text>
+              </TouchableOpacity>
+            </Animated.View>
+
+            <Text style={styles.qtyNumber}>{item.quantity}</Text>
+
+            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+              <TouchableOpacity
+                style={styles.qtyButton}
+                onPressIn={() => {
+                  Haptics.impactAsync();
+                  bounce();
+                  startHold(() => updateItemQuantity(item.id, item.quantity + 1));
+                }}
+                onPressOut={stopHold}
+              >
+                <Text style={styles.qtyText}>+</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+
+          <View style={styles.priceSection}>
+            <Text style={styles.itemPrice}>${subtotal.toFixed(2)}</Text>
+          </View>
+
+          <View style={{ alignItems: 'flex-end', marginTop: 4 }}>
+            <Text style={styles.swipeHint}>Swipe left to remove</Text>
+          </View>
         </View>
-      </View>
+      </Swipeable>
     );
   };
 
-  return (
-    <View style={styles.container}>
-      <FlatList
-        data={items}
-        keyExtractor={(item, idx) => item.id + idx}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContainer}
-        showsVerticalScrollIndicator={false}
-      />
+  const TipOption = ({ percent }) => (
+    <TouchableOpacity
+      onPress={() => {
+        Haptics.impactAsync();
+        setSelectedTip(prev => (prev === percent ? 0 : percent));
+      }}
+      style={[
+        styles.tipButton,
+        selectedTip === percent && styles.tipSelected,
+      ]}
+    >
+      <Text style={styles.tipText}>{percent}%</Text>
+    </TouchableOpacity>
+  );
 
-      <View style={styles.footer}>
-        <Text style={styles.totalText}>Total: ${total.toFixed(2)}</Text>
-        <TouchableOpacity
-          style={styles.orderButton}
-          onPress={() => {
-           navigation.navigate('OrderSummary', {
-             items,
-             total,
-            });
-          }}
-        >
-          <Text style={styles.orderButtonText}>Place Order</Text>
+  if (items.length === 0) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
-      </View>
-    </View>
+        <Text style={styles.emptyText}>Your cart is empty.</Text>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }} keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0} >
+      <SafeAreaView style={styles.container}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Text style={styles.backText}>← Back</Text>
+        </TouchableOpacity>
+        <FlatList
+          ref={flatListRef}
+          data={items}
+          keyExtractor={(item, idx) => `${item.name}-${item.sugar}-${item.milkType}-${idx}`}
+          renderItem={renderItem}
+          onScroll={(e) => setScrollOffset(e.nativeEvent.contentOffset.y)}
+          onLayout={() => {
+            if (flatListRef.current) {
+              flatListRef.current.scrollToOffset({ offset: scrollOffset, animated: false });
+            }
+          }}
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+        />
+
+        <View style={styles.divider} />
+
+        <View style={styles.tipSection}>
+          <Text style={styles.tipLabel}>Tip:</Text>
+          <View style={styles.tipRow}>
+            {[5, 10, 15, 20].map(p => (
+              <TipOption key={p} percent={p} />
+            ))}
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync();
+                setSelectedTip('custom');
+              }}
+              style={[
+                styles.tipButton,
+                selectedTip === 'custom' && styles.tipSelected,
+              ]}
+            >
+              <Text style={styles.tipText}>Custom</Text>
+            </TouchableOpacity>
+          </View>
+          {selectedTip === 'custom' && (
+            <>
+              <TextInput
+                style={styles.customInput}
+                keyboardType="numeric"
+                returnKeyType="done"
+                value={customTip}
+                onChangeText={setCustomTip}
+                placeholder="Enter tip %"
+                placeholderTextColor="#aaa"
+              />
+              <Text style={styles.tipPreview}>
+                Tip: ${tipValue.toFixed(2)}
+              </Text>
+            </>
+          )}
+        </View>
+
+        <View style={styles.footer}>
+          <View style={styles.calcRow}>
+            <Text style={styles.label}>Subtotal</Text>
+            <Text style={styles.amount}>${subtotal.toFixed(2)}</Text>
+          </View>
+          <View style={styles.calcRow}>
+            <Text style={styles.label}>Tax (HST)</Text>
+            <Text style={styles.amount}>${tax.toFixed(2)}</Text>
+          </View>
+          <View style={styles.calcRow}>
+            <Text style={styles.label}>Tip</Text>
+            <Text style={styles.amount}>${tipValue.toFixed(2)}</Text>
+          </View>
+          <View style={styles.calcRow}>
+            <Text style={styles.label}>Total</Text>
+            <Text style={[styles.amount, { fontWeight: '700', fontSize: 16 }]}>
+              ${total.toFixed(2)}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.orderButton}
+            onPress={() => {
+              Haptics.impactAsync();
+              navigation.navigate('OrderSummary', {
+                items,
+                total,
+                tax,
+                tip: tipValue,
+              });
+            }}
+          >
+            <Text style={styles.orderButtonText}>Place Order</Text>
+          </TouchableOpacity>
+          <Text style={styles.paymentHint}>Payment will be completed on the next screen.</Text>
+        </View>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  listContainer: { padding: 16, paddingBottom: 100 },
   emptyText: {
-    flex: 1,
-    textAlign: 'center',
-    marginTop: 50,
     fontSize: 18,
     color: '#666',
+    marginTop: 20,
+    textAlign: 'center',
   },
+  backBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  backText: {
+    color: '#a8e4a0',
+    fontSize: 16,
+    fontWeight: '600',
+  },     
+  container: { flex: 1, backgroundColor: '#fff' },
+  listContainer: { padding: 16, paddingBottom: 100 },
   itemContainer: {
     backgroundColor: '#fafafa',
     borderRadius: 8,
@@ -137,18 +303,17 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     elevation: 1,
   },
-  itemInfo: {
-    marginBottom: 8,
-  },
+  itemInfo: { marginBottom: 8 },
   itemName: { fontSize: 16, fontWeight: '600', color: '#2c1810' },
   itemDetail: { fontSize: 14, color: '#555', marginTop: 2 },
+  swipeHint: { fontSize: 12, color: '#888' },
   quantitySection: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 8,
   },
   qtyButton: {
-    backgroundColor: "#a8e4a0",
+    backgroundColor: '#a8e4a0',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -169,29 +334,96 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   itemPrice: { fontSize: 16, fontWeight: '600', color: '#6b4a3e' },
-  removeButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    backgroundColor: 'black',
-    borderRadius: 12,
+  swipeRemove: {
+    backgroundColor: '#a8e4a0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flex: 1,
+    marginBottom: 16,
+    borderRadius: 8,
   },
-  removeText: { color: '#fff', fontSize: 12 },
-
+  removeText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  tipSection: { paddingHorizontal: 16, marginBottom: 10 },
+  tipLabel: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
+  tipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 8,
+  },
+  
+  tipButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#a8e4a0',
+    backgroundColor: 'white',
+  },
+  
+  tipSelected: {
+    backgroundColor: '#a8e4a0',
+  },
+  
+  tipText: {
+    fontSize: 14,
+    color: '#333',
+  },  
+  customInput: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 14,
+    backgroundColor: '#fff',
+    color: '#333',
+  },
+  tipPreview: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 4,
+    marginBottom: 4,
+  },  
   footer: {
     padding: 16,
     borderTopWidth: 1,
     borderColor: '#e0e0e0',
     backgroundColor: '#fff',
   },
-  totalText: { fontSize: 18, fontWeight: '700', textAlign: 'right' },
+  totalText: { fontSize: 16, fontWeight: '600', textAlign: 'right', marginBottom: 2 },
   orderButton: {
-    backgroundColor: "#a8e4a0",
+    backgroundColor: '#a8e4a0',
     paddingVertical: 15,
     width: '100%',
     borderRadius: 6,
     alignItems: 'center',
     marginTop: 16,
-    marginBottom: 35
   },
   orderButtonText: { color: '#fff', fontSize: 20 },
+  paymentHint: {
+    fontSize: 13,
+    color: '#888',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  calcRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 2,
+  },
+  label: {
+    color: '#555',
+    fontSize: 14,
+  },
+  amount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c1810',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#eee',
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },   
 });
