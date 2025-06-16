@@ -13,6 +13,7 @@ import { CartContext } from '../context/CartContext'
 
 export default function OrderSummaryScreen({ route, navigation }) {
   const { items: initialItems, total: initialTotal } = route.params
+  console.log("initial items", initialItems);
   const { clearCart } = useContext(CartContext)
 
   const [customerName, setCustomerName] = useState('')
@@ -29,28 +30,27 @@ export default function OrderSummaryScreen({ route, navigation }) {
 
     setLoading(true)
 
-    const rows = initialItems.map(item => ({
-      drink_id:      item.id,
-      drink_name:    item.name,
-      sugar:         item.sugar,
-      milk:     item.milkType,
-      price:         item.price,
-      quantity:      item.quantity,
+    const rows = initialItems.map((item, index) => ({
+      drink_id:     item.drink_id,
+      drink_name:   item.name,
+      sugar:        item.sugar,
+      milk:         item.milkType,
+      price:        item.price,
+      quantity:     item.quantity,
       totalAmount:  item.price * item.quantity,
-      location:      address,
-      delivered:     'f',
-      ready:         'f',
-      name: customerName,
-      user_id:       null,
-      method:        method,
-      paymentMethod:  paymentMethod
+      location:     address,
+      delivered:    index === 0 ? 'f' : null,  // only first item gets 'f'
+      ready:        index === 0 ? 'f' : null,  // only first item gets 'f'
+      name:         customerName,
+      user_id:      null,
+      method:       method,
+      paymentMethod: paymentMethod
     }))
 
     const { data, error } = await supabase
       .from('Orders')
       .insert(rows)
       .select('id')
-      .single()
 
     setLoading(false)
 
@@ -61,9 +61,11 @@ export default function OrderSummaryScreen({ route, navigation }) {
 
     console.log('RAW ERROR →', JSON.stringify(error, null, 2));
 
+    const orderId = data?.[0]?.id;
+
     clearCart()
     Alert.alert('Order placed!', 'Thank you for your purchase.')
-    navigation.navigate('OrderStatus', { orderId: data.id })
+    navigation.navigate('OrderStatus', { orderId })
   }
 
   return (
@@ -218,7 +220,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container:  { flex: 1, padding: 16, backgroundColor: '#fff' },
+  container:  { flex: 1, padding: 16, backgroundColor: "white" },
   heading:    { fontSize: 22, fontWeight: '700', marginBottom: 12 },
   list:       { maxHeight: 200, marginBottom: 12 },
   row:        { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
@@ -227,21 +229,21 @@ const styles = StyleSheet.create({
   total:      { fontSize: 18, fontWeight: '700', textAlign: 'right', marginVertical: 12 },
   label:      { fontSize: 14, fontWeight: '600', marginTop: 12 },
   input:      { borderWidth: 1, borderColor: '#ddd', borderRadius: 6, padding: 10, marginTop: 4 },
-  signupLink: { color: '#6b4a3e', marginTop: 8, fontStyle: 'italic', textDecorationLine: 'underline' },
+  signupLink: { color: "#a8e4a0", marginTop: 8, fontStyle: 'italic', textDecorationLine: 'underline' },
   methodRow:  { flexDirection: 'row', marginTop: 8 },
   methodButton: {
     flex: 1,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#6b4a3e',
+    borderColor: "#a8e4a0",
     borderRadius: 6,
     marginRight: 8,
     alignItems: 'center',
   },
-  methodSelected:     { backgroundColor: '#6b4a3e' },
-  methodText:         { color: '#6b4a3e', fontWeight: '600' },
+  methodSelected:     { backgroundColor: "#a8e4a0" },
+  methodText:         { color: "#a8e4a0", fontWeight: '600' },
   methodTextSelected: { color: '#fff' },
-  confirmButton:      { backgroundColor: '#6b4a3e', paddingVertical: 14, borderRadius: 6, alignItems: 'center', marginTop: 20 },
+  confirmButton:      { backgroundColor: "#a8e4a0", paddingVertical: 14, borderRadius: 6, alignItems: 'center', marginTop: 20 },
   confirmDisabled:    { backgroundColor: '#ccc' },
   confirmText:        { color: '#fff', fontSize: 16, fontWeight: '700' },
 })

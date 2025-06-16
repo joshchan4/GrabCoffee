@@ -13,17 +13,18 @@ import {
 } from "react-native"
 import { CartContext } from "../context/CartContext"
 import IcedLatteImg from "../../assets/iced_latte.png"
+import { v4 as uuidv4 } from 'uuid';
 
 const COFFEE_MENU = [
-  { id: "1", name: "Iced Latte", price: 4.5, description: "Smooth espresso with cold milk over ice", image: IcedLatteImg },
-  { id: "2", name: "Hot Latte", price: 4, description: "Rich espresso with steamed milk and light foam", image: IcedLatteImg },
-  { id: "3", name: "Iced Matcha Latte", price: 4.75, description: "Refreshing matcha with cold milk over ice", image: IcedLatteImg },
-  { id: "4", name: "Hot Matcha Latte", price: 4.25, description: "Premium matcha powder with steamed milk", image: IcedLatteImg },
-  { id: "5", name: "Iced Americano", price: 4, description: "Espresso shots with cold water over ice", image: IcedLatteImg },
-  { id: "6", name: "Hot Americano", price: 3.5, description: "Bold espresso shots with hot water", image: IcedLatteImg },
-  { id: "7", name: "Iced Cappuccino", price: 4.2, description: "Espresso with cold milk and cold foam over ice", image: IcedLatteImg },
-  { id: "8", name: "Hot Cappuccino", price: 3.75, description: "Equal parts espresso, steamed milk, and foam", image: IcedLatteImg },
-  { id: "9", name: "Espresso", price: 3, description: "Plain espresso", image: IcedLatteImg },
+  { drink_id: "1", name: "Iced Latte", price: 4.5, description: "Smooth espresso with cold milk over ice", image: IcedLatteImg },
+  { drink_id: "2", name: "Hot Latte", price: 4, description: "Rich espresso with steamed milk and light foam", image: IcedLatteImg },
+  { drink_id: "3", name: "Iced Matcha Latte", price: 4.75, description: "Refreshing matcha with cold milk over ice", image: IcedLatteImg },
+  { drink_id: "4", name: "Hot Matcha Latte", price: 4.25, description: "Premium matcha powder with steamed milk", image: IcedLatteImg },
+  { drink_id: "5", name: "Iced Americano", price: 4, description: "Espresso shots with cold water over ice", image: IcedLatteImg },
+  { drink_id: "6", name: "Hot Americano", price: 3.5, description: "Bold espresso shots with hot water", image: IcedLatteImg },
+  { drink_id: "7", name: "Iced Cappuccino", price: 4.2, description: "Espresso with cold milk and cold foam over ice", image: IcedLatteImg },
+  { drink_id: "8", name: "Hot Cappuccino", price: 3.75, description: "Equal parts espresso, steamed milk, and foam", image: IcedLatteImg },
+  { drink_id: "9", name: "Espresso", price: 3, description: "Plain espresso", image: IcedLatteImg },
 ]
 
 const GROUPED_MENU = {
@@ -53,25 +54,43 @@ export default function MenuScreen({ navigation }) {
   }
 
   const handleAddToCart = () => {
-    if (!selectedItem || quantity === 0) return
-    let payload = { ...selectedItem, sugar: null, milkType: null, quantity }
-    if (espressoIds.has(selectedItem.id)) {
+    if (!selectedItem || quantity === 0) return;
+
+    let sugar = null;
+    let milkType = null;
+
+    if (espressoIds.has(selectedItem.drink_id)) {
       // No options for espresso
-    } else if (americanoIds.has(selectedItem.id)) {
-      if (sugarChoice === null) return
-      payload.sugar = sugarChoice
-    } else if (milkIds.has(selectedItem.id)) {
-      if (sugarChoice === null || milkChoice === null) return
-      payload.sugar = sugarChoice
-      payload.milkType = milkChoice
+    } else if (americanoIds.has(selectedItem.drink_id)) {
+      if (sugarChoice === null) return;
+      sugar = sugarChoice;
+    } else if (milkIds.has(selectedItem.drink_id)) {
+      if (sugarChoice === null || milkChoice === null) return;
+      sugar = sugarChoice;
+      milkType = milkChoice;
     }
-    addToCart(payload)
-    setModalVisible(false)
-    setSelectedItem(null)
-    setSugarChoice(null)
-    setMilkChoice(null)
-    setQuantity(1)
-  }
+
+    // Generate a unique cartItemId based on all distinguishing fields
+    const id = uuidv4();
+
+    const payload = {
+      ...selectedItem,
+      sugar,
+      milkType,
+      quantity,
+      id, // new unique ID
+    };
+
+    addToCart(payload);
+
+    // Reset UI state
+    setModalVisible(false);
+    setSelectedItem(null);
+    setSugarChoice(null);3
+    setMilkChoice(null);
+    setQuantity(1);
+  };
+
 
   const decrementQty = () => {
     setQuantity((q) => (q > 0 ? q - 1 : 0))
@@ -117,7 +136,7 @@ export default function MenuScreen({ navigation }) {
             <FlatList
               data={items}
               horizontal
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.drink_id}
               renderItem={renderItem}
               contentContainerStyle={{ paddingHorizontal: 12 }}
               showsHorizontalScrollIndicator={false}
@@ -146,7 +165,7 @@ export default function MenuScreen({ navigation }) {
               <Text style={styles.modalTitle}>{selectedItem?.name}</Text>
               <Text style={styles.modalPrice}>{selectedItem ? `$${selectedItem.price.toFixed(2)}` : ""}</Text>
 
-              {selectedItem && americanoIds.has(selectedItem.id) && (
+              {selectedItem && americanoIds.has(selectedItem.drink_id) && (
                 <>
                   <Text style={styles.modalSubtitle}>Sugar?</Text>
                   <View style={styles.choiceRow}>
@@ -166,7 +185,7 @@ export default function MenuScreen({ navigation }) {
                 </>
               )}
 
-              {selectedItem && milkIds.has(selectedItem.id) && (
+              {selectedItem && milkIds.has(selectedItem.drink_id) && (
                 <>
                   <Text style={styles.modalSubtitle}>Sugar?</Text>
                   <View style={styles.choiceRow}>
@@ -217,16 +236,16 @@ export default function MenuScreen({ navigation }) {
                 style={[
                   styles.addToCartButton,
                   quantity === 0 ||
-                  (selectedItem && americanoIds.has(selectedItem.id) && sugarChoice === null) ||
-                  (selectedItem && milkIds.has(selectedItem.id) && (sugarChoice === null || milkChoice === null))
+                  (selectedItem && americanoIds.has(selectedItem.drink_id) && sugarChoice === null) ||
+                  (selectedItem && milkIds.has(selectedItem.drink_id) && (sugarChoice === null || milkChoice === null))
                     ? styles.addToCartButtonDisabled
                     : null
                 ]}
                 onPress={handleAddToCart}
                 disabled={
                   quantity === 0 ||
-                  (selectedItem && americanoIds.has(selectedItem.id) && sugarChoice === null) ||
-                  (selectedItem && milkIds.has(selectedItem.id) && (sugarChoice === null || milkChoice === null))
+                  (selectedItem && americanoIds.has(selectedItem.drink_id) && sugarChoice === null) ||
+                  (selectedItem && milkIds.has(selectedItem.drink_id) && (sugarChoice === null || milkChoice === null))
                 }
               >
                 <Text style={styles.addToCartText}>Add to Cart</Text>

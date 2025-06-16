@@ -9,11 +9,6 @@ import {
 import { CartContext } from '../context/CartContext';
 
 export default function CartScreen({ navigation }) {
-  // Assume CartContext now provides:
-  // items: array of { id, name, price, sugar, milkType, quantity }
-  // clearCart(): removes all items
-  // updateItemQuantity(itemId, newQuantity): updates quantity
-  // removeItem(itemId): removes item entirely
   const {
     items,
     clearCart,
@@ -21,10 +16,8 @@ export default function CartScreen({ navigation }) {
     removeItem,
   } = useContext(CartContext);
 
-  // Total = sum of price * quantity
   const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
-  // Render when cart is empty
   if (items.length === 0) {
     return (
       <View style={styles.container}>
@@ -33,8 +26,7 @@ export default function CartScreen({ navigation }) {
     );
   }
 
-  // Render each item row with quantity controls and remove button
-  const renderItem = ({ item, index }) => {
+  const renderItem = ({ item }) => {
     const subtotal = item.price * item.quantity;
 
     return (
@@ -95,7 +87,7 @@ export default function CartScreen({ navigation }) {
     <View style={styles.container}>
       <FlatList
         data={items}
-        keyExtractor={(item, idx) => item.id + idx}
+        keyExtractor={(item) => item.id}
         renderItem={renderItem}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
@@ -106,9 +98,9 @@ export default function CartScreen({ navigation }) {
         <TouchableOpacity
           style={styles.orderButton}
           onPress={() => {
-           navigation.navigate('OrderSummary', {
-             items,
-             total,
+            navigation.navigate('OrderSummary', {
+              items,
+              total,
             });
           }}
         >
@@ -176,7 +168,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   removeText: { color: '#fff', fontSize: 12 },
-
   footer: {
     padding: 16,
     borderTopWidth: 1,
