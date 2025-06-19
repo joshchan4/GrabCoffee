@@ -14,27 +14,20 @@ import {
 const { width, height } = Dimensions.get("window");
 
 export default function CoverScreen({ onFinish }) {
-  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
   const [buttonLayout, setButtonLayout] = useState(null);
-  const [circlePosition, setCirclePosition] = useState({ x: width / 2 - 100, y: height / 2 - 100 });
 
   const triggerTransition = () => {
-    if (!buttonLayout) return;
-  
-    const centerX = buttonLayout.x + buttonLayout.width / 2 - 100;
-    const centerY = buttonLayout.y + buttonLayout.height / 2 + 550;
-    setCirclePosition({ x: centerX, y: centerY });
-  
-    // Start long animation
-    Animated.timing(scaleAnim, {
-      toValue: 25,
-      duration: 10000,
-      easing: Easing.out(Easing.circle),
+    // Fade in the soft cloud overlay (50% faster)
+    Animated.timing(overlayOpacity, {
+      toValue: 1,
+      duration: 250,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  
-    // Cut it off early by triggering fade after a few seconds
+
+    // Fade out the whole screen after a shorter delay
     setTimeout(() => {
       Animated.timing(opacityAnim, {
         toValue: 0,
@@ -43,11 +36,11 @@ export default function CoverScreen({ onFinish }) {
       }).start(() => {
         onFinish?.();
       });
-    }, 1000);
-  };  
+    }, 350);
+  };
 
   return (
-    <Animated.View style={[styles.overlay, { opacity: opacityAnim }]}>
+    <Animated.View style={[styles.overlay, { opacity: opacityAnim }]}> 
       <StatusBar translucent backgroundColor="transparent" />
 
       <View style={styles.mainContent}>
@@ -66,18 +59,18 @@ export default function CoverScreen({ onFinish }) {
         </TouchableOpacity>
       </View>
 
-      {buttonLayout && (
-        <Animated.View
-          style={[
-            styles.circle,
-            {
-              left: circlePosition.x,
-              top: circlePosition.y,
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
-        />
-      )}
+      {/* Soft cloud overlay */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFill,
+          {
+            backgroundColor: '#f8f8f8',
+            opacity: overlayOpacity,
+            zIndex: 20,
+          },
+        ]}
+      />
     </Animated.View>
   );
 }
@@ -139,13 +132,5 @@ const styles = StyleSheet.create({
     color: "#a8e4a0",
     fontSize: 16,
     fontWeight: "bold",
-  },
-  circle: {
-    position: "absolute",
-    width: 200,
-    height: 200,
-    backgroundColor: "#fefefe",
-    borderRadius: 100,
-    zIndex: 20,
   },
 });

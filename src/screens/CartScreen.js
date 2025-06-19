@@ -45,13 +45,25 @@ export default function CartScreen({ navigation }) {
     }).start();
   }, [total]);
 
-  const startHold = (action) => {
-    action();
-    holdTimeout.current = setTimeout(() => {
-      holdInterval.current = setInterval(action, 150);
-    }, 1000);
+  // Handler that always uses the latest quantity
+  const handleChangeQuantity = (id, delta) => {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    const newQty = item.quantity + delta;
+    if (newQty <= 0) {
+      removeItem(id);
+    } else {
+      updateItemQuantity(id, newQty);
+    }
   };
 
+  // Hold logic
+  const startHold = (id, delta) => {
+    handleChangeQuantity(id, delta);
+    holdTimeout.current = setTimeout(() => {
+      holdInterval.current = setInterval(() => handleChangeQuantity(id, delta), 120);
+    }, 400);
+  };
   const stopHold = () => {
     if (holdTimeout.current) clearTimeout(holdTimeout.current);
     if (holdInterval.current) clearInterval(holdInterval.current);
@@ -69,7 +81,7 @@ export default function CartScreen({ navigation }) {
         toValue: 1,
         useNativeDriver: true,
       }).start();
-    };    
+    };
 
     return (
       <Swipeable
@@ -107,14 +119,7 @@ export default function CartScreen({ navigation }) {
                 onPressIn={() => {
                   Haptics.impactAsync();
                   bounce();
-                  startHold(() => {
-                    const newQty = item.quantity - 1;
-                    if (newQty <= 0) {
-                      removeItem(item.id);
-                    } else {
-                      updateItemQuantity(item.id, newQty);
-                    }
-                  });
+                  startHold(item.id, -1);
                 }}
                 onPressOut={stopHold}
               >
@@ -130,7 +135,7 @@ export default function CartScreen({ navigation }) {
                 onPressIn={() => {
                   Haptics.impactAsync();
                   bounce();
-                  startHold(() => updateItemQuantity(item.id, item.quantity + 1));
+                  startHold(item.id, 1);
                 }}
                 onPressOut={stopHold}
               >
@@ -285,6 +290,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   backBtn: {
+    marginTop: 16,
     paddingVertical: 12,
     paddingHorizontal: 16,
   },

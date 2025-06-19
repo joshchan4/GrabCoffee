@@ -1,5 +1,5 @@
 "use client"
-import { useContext, useState } from "react"
+import { useContext, useState, useRef } from "react"
 import {
   View,
   Text,
@@ -10,10 +10,12 @@ import {
   Modal,
   Image,
   ScrollView,
+  Dimensions,
 } from "react-native"
 import { CartContext } from "../context/CartContext"
 import IcedLatteImg from "../../assets/iced_latte.png"
 import { v4 as uuidv4 } from 'uuid';
+import * as Haptics from 'expo-haptics';
 
 const COFFEE_MENU = [
   { drink_id: "1", name: "Iced Latte", price: 4.5, description: "Smooth espresso with cold milk over ice", image: IcedLatteImg },
@@ -33,6 +35,8 @@ const GROUPED_MENU = {
   "Hot Drinks": COFFEE_MENU.filter(item => (item.name.toLowerCase().startsWith("hot") || item.name.toLowerCase() === "espresso") && !item.name.toLowerCase().includes("matcha")),
 }
 
+const CARD_WIDTH = Math.min(200, Dimensions.get("window").width * 0.7);
+
 export default function MenuScreen({ navigation }) {
   const { addToCart } = useContext(CartContext)
   const [modalVisible, setModalVisible] = useState(false)
@@ -40,12 +44,15 @@ export default function MenuScreen({ navigation }) {
   const [sugarChoice, setSugarChoice] = useState(null)
   const [milkChoice, setMilkChoice] = useState(null)
   const [quantity, setQuantity] = useState(1)
+  const holdInterval = useRef(null);
+  const holdTimeout = useRef(null);
 
   const espressoIds = new Set(["9"])
   const americanoIds = new Set(["5", "6"])
   const milkIds = new Set(["1", "2", "3", "4", "7", "8"])
 
   const onItemPress = (item) => {
+    Haptics.impactAsync();
     setSelectedItem(item)
     setSugarChoice(null)
     setMilkChoice(null)
@@ -54,11 +61,10 @@ export default function MenuScreen({ navigation }) {
   }
 
   const handleAddToCart = () => {
+    Haptics.impactAsync();
     if (!selectedItem || quantity === 0) return;
-
     let sugar = null;
     let milkType = null;
-
     if (espressoIds.has(selectedItem.drink_id)) {
       // No options for espresso
     } else if (americanoIds.has(selectedItem.drink_id)) {
@@ -69,38 +75,47 @@ export default function MenuScreen({ navigation }) {
       sugar = sugarChoice;
       milkType = milkChoice;
     }
-
-    // Generate a unique cartItemId based on all distinguishing fields
     const id = uuidv4();
-
     const payload = {
       ...selectedItem,
       sugar,
       milkType,
       quantity,
-      id, // new unique ID
+      id,
     };
-
     addToCart(payload);
-
-    // Reset UI state
     setModalVisible(false);
     setSelectedItem(null);
-    setSugarChoice(null);3
+    setSugarChoice(null);
     setMilkChoice(null);
     setQuantity(1);
   };
 
+  // Hold-to-increase/decrease logic
+  const startHold = (action) => {
+    action();
+    holdTimeout.current = setTimeout(() => {
+      holdInterval.current = setInterval(action, 150);
+    }, 500);
+  };
+  const stopHold = () => {
+    if (holdTimeout.current) clearTimeout(holdTimeout.current);
+    if (holdInterval.current) clearInterval(holdInterval.current);
+    holdTimeout.current = null;
+    holdInterval.current = null;
+  };
 
   const decrementQty = () => {
+    Haptics.impactAsync();
     setQuantity((q) => (q > 0 ? q - 1 : 0))
   }
   const incrementQty = () => {
+    Haptics.impactAsync();
     setQuantity((q) => q + 1)
   }
 
   const renderItem = ({ item }) => (
-    <TouchableOpacity style={styles.card} activeOpacity={0.8} onPress={() => onItemPress(item)}>
+    <TouchableOpacity style={[styles.card, { width: CARD_WIDTH }]} activeOpacity={0.8} onPress={() => onItemPress(item)}>
       <View style={styles.cardContent}>
         <Image source={item.image} style={styles.image} />
         <View style={styles.itemInfo}>
@@ -110,7 +125,7 @@ export default function MenuScreen({ navigation }) {
         </View>
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => onItemPress(item)}
+          onPress={() => { Haptics.impactAsync(); onItemPress(item); }}
           activeOpacity={0.8}
         >
           <Text style={styles.addButtonText}>+</Text>
@@ -133,12 +148,13 @@ export default function MenuScreen({ navigation }) {
         {Object.entries(GROUPED_MENU).map(([category, items]) => (
           <View key={category} style={{ marginBottom: 24 }}>
             <Text style={styles.sectionTitle}>{category}</Text>
+            <Text style={styles.swipeHint}>Swipe to see more →</Text>
             <FlatList
               data={items}
               horizontal
               keyExtractor={(item) => item.drink_id}
               renderItem={renderItem}
-              contentContainerStyle={{ paddingHorizontal: 12 }}
+              contentContainerStyle={{ paddingHorizontal: 12, paddingRight: 24 }}
               showsHorizontalScrollIndicator={false}
             />
           </View>
@@ -147,7 +163,7 @@ export default function MenuScreen({ navigation }) {
 
       <TouchableOpacity
         style={styles.cartButton}
-        onPress={() => navigation.navigate("Cart")}
+        onPress={() => { Haptics.impactAsync(); navigation.navigate("Cart"); }}
         activeOpacity={0.9}
       >
         <Text style={styles.cartButtonText}>View Cart</Text>
@@ -171,13 +187,13 @@ export default function MenuScreen({ navigation }) {
                   <View style={styles.choiceRow}>
                     <TouchableOpacity
                       style={[styles.choiceButton, sugarChoice === true && styles.choiceButtonSelected]}
-                      onPress={() => setSugarChoice(true)}
+                      onPress={() => { Haptics.impactAsync(); setSugarChoice(true); }}
                     >
                       <Text style={[styles.choiceText, sugarChoice === true && styles.choiceTextSelected]}>Sugar</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.choiceButton, sugarChoice === false && styles.choiceButtonSelected]}
-                      onPress={() => setSugarChoice(false)}
+                      onPress={() => { Haptics.impactAsync(); setSugarChoice(false); }}
                     >
                       <Text style={[styles.choiceText, sugarChoice === false && styles.choiceTextSelected]}>No Sugar</Text>
                     </TouchableOpacity>
@@ -191,13 +207,13 @@ export default function MenuScreen({ navigation }) {
                   <View style={styles.choiceRow}>
                     <TouchableOpacity
                       style={[styles.choiceButton, sugarChoice === true && styles.choiceButtonSelected]}
-                      onPress={() => setSugarChoice(true)}
+                      onPress={() => { Haptics.impactAsync(); setSugarChoice(true); }}
                     >
                       <Text style={[styles.choiceText, sugarChoice === true && styles.choiceTextSelected]}>Sugar</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.choiceButton, sugarChoice === false && styles.choiceButtonSelected]}
-                      onPress={() => setSugarChoice(false)}
+                      onPress={() => { Haptics.impactAsync(); setSugarChoice(false); }}
                     >
                       <Text style={[styles.choiceText, sugarChoice === false && styles.choiceTextSelected]}>No Sugar</Text>
                     </TouchableOpacity>
@@ -207,13 +223,13 @@ export default function MenuScreen({ navigation }) {
                   <View style={styles.choiceRow}>
                     <TouchableOpacity
                       style={[styles.choiceButton, milkChoice === "milk" && styles.choiceButtonSelected]}
-                      onPress={() => setMilkChoice("milk")}
+                      onPress={() => { Haptics.impactAsync(); setMilkChoice("milk"); }}
                     >
                       <Text style={[styles.choiceText, milkChoice === "milk" && styles.choiceTextSelected]}>Organic Milk</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.choiceButton, milkChoice === "oat" && styles.choiceButtonSelected]}
-                      onPress={() => setMilkChoice("oat")}
+                      onPress={() => { Haptics.impactAsync(); setMilkChoice("oat"); }}
                     >
                       <Text style={[styles.choiceText, milkChoice === "oat" && styles.choiceTextSelected]}>Oat Milk</Text>
                     </TouchableOpacity>
@@ -223,11 +239,19 @@ export default function MenuScreen({ navigation }) {
 
               <Text style={[styles.modalSubtitle, { marginTop: 8 }]}>Quantity</Text>
               <View style={styles.quantityRow}>
-                <TouchableOpacity style={styles.qtyButton} onPress={decrementQty}>
+                <TouchableOpacity
+                  style={styles.qtyButton}
+                  onPressIn={() => startHold(decrementQty)}
+                  onPressOut={stopHold}
+                >
                   <Text style={styles.qtyText}>–</Text>
                 </TouchableOpacity>
                 <Text style={styles.qtyNumber}>{quantity}</Text>
-                <TouchableOpacity style={styles.qtyButton} onPress={incrementQty}>
+                <TouchableOpacity
+                  style={styles.qtyButton}
+                  onPressIn={() => startHold(incrementQty)}
+                  onPressOut={stopHold}
+                >
                   <Text style={styles.qtyText}>+</Text>
                 </TouchableOpacity>
               </View>
@@ -254,6 +278,7 @@ export default function MenuScreen({ navigation }) {
               <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => {
+                  Haptics.impactAsync();
                   setModalVisible(false)
                   setSelectedItem(null)
                   setSugarChoice(null)
@@ -333,7 +358,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    width: 220,
   },
   cardContent: {
     padding: 12,
@@ -520,5 +544,12 @@ const styles = StyleSheet.create({
     color: "#6b4a3e",
     fontSize: 16,
     fontWeight: "500",
+  },
+  swipeHint: {
+    fontSize: 13,
+    color: '#888',
+    marginLeft: 16,
+    marginBottom: 2,
+    fontStyle: 'italic',
   },
 })

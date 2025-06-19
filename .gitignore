@@ -35,3 +35,17 @@ yarn-error.*
 
 # typescript
 *.tsbuildinfo
+
+# Ignore all .env files (for secrets)
+.env
+.env.*
+backend/.env
+backend/.env.*
+# Ignore Apple/Stripe/Pay certs
+applepay-certs/
+*.pem
+*.key
+*.p8
+*.p12
+*.crt
+*.cert
