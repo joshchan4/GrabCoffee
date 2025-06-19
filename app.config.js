@@ -9,6 +9,7 @@ export default {
       bundleIdentifier: "com.coffee.grab",
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
+        NSLocationWhenInUseUsageDescription: "This app uses your location to show your distance and route to the pickup location.",
       },
     },
     extra: {
@@ -24,6 +25,7 @@ export default {
         {
           merchantIdentifier: "merchant.com.grabcoffee",
           enableGooglePay: true,
+          enableApplePay: true,
         },
       ],
     ],
