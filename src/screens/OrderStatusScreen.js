@@ -1,89 +1,105 @@
-// src/screens/OrderStatusScreen.jsx
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { supabase } from '../utils/supabase';
 import * as Notifications from 'expo-notifications';
+import dayjs from 'dayjs';
 
 export default function OrderStatusScreen({ route, navigation }) {
   const { orderId } = route.params;
-  const [secondsLeft, setSecondsLeft] = useState(10 * 60); // 10 minutes
+  const [etaMinutesLeft, setEtaMinutesLeft] = useState(null);
   const [ready, setReady] = useState(false);
-  const [notified, setNotified] = useState(false); // prevent double notifications
+  const [delayed, setDelayed] = useState(false);
+  const [notified, setNotified] = useState({ ready: false, delayed: false });
 
   useEffect(() => {
-    let isMounted = true;
+    let timerInterval, pollingInterval;
 
-    // Countdown timer
-    const timerInterval = setInterval(() => {
-      setSecondsLeft(prev => {
-        if (prev > 0) return prev - 1;
-        clearInterval(timerInterval);
-        return 0;
-      });
-    }, 1000);
+    const startPolling = async () => {
+      pollingInterval = setInterval(async () => {
+        const { data, error } = await supabase
+          .from('Orders')
+          .select('ready, delivered, delayed, estimated_delivery_time')
+          .eq('id', orderId)
+          .maybeSingle();
 
-    // Supabase polling
-    const deliveryInterval = setInterval(async () => {
-      const { data, error } = await supabase
-        .from('Orders')
-        .select('ready, delivered')
-        .eq('id', orderId)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error polling order status:', error);
-        return;
-      }
-
-      // READY check
-      if (data?.ready === 't' && !ready) {
-        console.log('✅ ready === t, setting ready and firing notification');
-        setReady(true);
-        console.log('Polling result:', data);
-
-        if (!notified) {
-          Notifications.scheduleNotificationAsync({
-            content: {
-              title: 'Order Ready!',
-              body: 'Your order is ready for pickup!',
-            },
-            trigger: null,
-          });
-          setNotified(true);
+        if (error || !data) {
+          console.error('Polling error:', error);
+          return;
         }
-      }
 
-      // DELIVERED check
-      if (data?.delivered === 't') {
-        clearInterval(timerInterval);
-        clearInterval(deliveryInterval);
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Cover' }],
-        });
-      }
-    }, 3000);
+        const {
+          ready: isReady,
+          delivered: isDelivered,
+          delayed: isDelayed,
+          estimated_delivery_time: etaTime,
+        } = data;
+
+        if (etaTime) {
+          const now = dayjs();
+          const eta = dayjs(etaTime);
+          const minutesLeft = eta.diff(now, 'minute');
+          setEtaMinutesLeft(minutesLeft > 0 ? minutesLeft : 0);
+        }
+
+        if (isReady === 't' && !ready) {
+          setReady(true);
+          if (!notified.ready) {
+            Notifications.scheduleNotificationAsync({
+              content: {
+                title: 'Order Ready!',
+                body: 'Your order is ready for pickup!',
+              },
+              trigger: null,
+            });
+            setNotified(prev => ({ ...prev, ready: true }));
+          }
+        }
+
+        if (isDelayed && !delayed) {
+          setDelayed(true);
+          if (!notified.delayed) {
+            Notifications.scheduleNotificationAsync({
+              content: {
+                title: 'Order Delayed',
+                body: 'Your order is taking longer than expected. Thanks for waiting!',
+              },
+              trigger: null,
+            });
+            setNotified(prev => ({ ...prev, delayed: true }));
+          }
+        }
+
+        if (isDelivered === 't') {
+          clearInterval(pollingInterval);
+          clearInterval(timerInterval);
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Cover' }],
+          });
+        }
+      }, 3000);
+    };
+
+    startPolling();
 
     return () => {
-      isMounted = false;
-      clearInterval(timerInterval);
-      clearInterval(deliveryInterval);
+      clearInterval(pollingInterval);
     };
-  }, [orderId, navigation, ready, notified]);
-
-  const formatTime = (totalSeconds) => {
-    const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, '0');
-    const seconds = (totalSeconds % 60).toString().padStart(2, '0');
-    return `${minutes}:${seconds}`;
-  };
+  }, [orderId, navigation, ready, delayed, notified]);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>
-        {ready ? 'Your order is ready!' : 'Estimated time to delivery'}
-      </Text>
-      {!ready && (
-        <Text style={styles.timer}>{formatTime(secondsLeft)}</Text>
+      {ready ? (
+        <Text style={styles.text}>✅ Your order is ready!</Text>
+      ) : delayed ? (
+        <Text style={styles.text}>⚠️ Order is delayed</Text>
+      ) : (
+        <>
+          <Text style={styles.text}>⏳ Estimated time remaining</Text>
+          <Text style={styles.timer}>
+            {etaMinutesLeft !== null ? `${etaMinutesLeft} min` : 'Loading...'}
+          </Text>
+        </>
       )}
     </View>
   );
@@ -102,6 +118,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: "white",
     marginBottom: 10,
+    textAlign: 'center',
   },
   timer: {
     fontSize: 36,
