@@ -27,6 +27,7 @@ import PickupMap from '../components/PickupMap';
 import PaypalLogo from '../../assets/paypal.png';
 import CardLogo from '../../assets/card.png';
 import { WebView } from 'react-native-webview';
+import PersistentHeader from '../components/PersistentHeader';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -72,6 +73,16 @@ export default function OrderSummaryScreen({ route, navigation }) {
     console.log('🍎 Apple Pay supported:', isPlatformPaySupported);
   }, [isPlatformPaySupported]);
 
+  // ETA fallback values
+  const DEFAULT_PICKUP_ETA_MINUTES = 15;
+  const DEFAULT_DELIVERY_ETA_MINUTES = 30;
+
+  // Helper to get ETA in minutes
+  const getEtaMinutes = () => {
+    // TODO: If you have location, calculate ETA here
+    return method === 'pickup' ? DEFAULT_PICKUP_ETA_MINUTES : DEFAULT_DELIVERY_ETA_MINUTES;
+  };
+
   const handlePayment = async () => {
     if (!customerName.trim()) return Alert.alert('Please enter your name.')
     if (!address.trim() || !paymentMethod || !method) {
@@ -80,6 +91,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
 
     setLoading(true)
 
+    const etaMinutes = getEtaMinutes();
     const rows = initialItems.map((item, index) => ({
       drink_id:     item.drink_id,
       drink_name:   item.name,
@@ -96,7 +108,8 @@ export default function OrderSummaryScreen({ route, navigation }) {
       method:       method,
       paymentMethod: paymentMethod,
       tax:           index === 0 ? initialTax : null,
-      tip:           index === 0 ? initialTipValue : null
+      tip:           index === 0 ? initialTipValue : null,
+      eta:           index === 0 ? etaMinutes : null, // Only set on first row
     }))
 
     const { data, error } = await supabase
@@ -125,7 +138,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
     setLoading(true);
     try {
       console.log('📡 Making network request to create payment intent...');
-      console.log('🌐 URL: http://100.66.23.115:3001/api/payment/create-payment-intent');
+      console.log('🌐 URL: http://100.66.16.34:3001/api/payment/create-payment-intent');
       console.log('📦 Request payload:', {
         items: initialItems,
         customerName,
@@ -135,7 +148,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
         tip: initialTipValue
       });
       
-      const response = await fetch('http://100.66.23.115:3001/api/payment/create-payment-intent', {
+      const response = await fetch('http://100.66.16.34:3001/api/payment/create-payment-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -218,7 +231,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
           '• Is your backend server running?\n' +
           '• Is the IP address correct?\n' +
           '• Are you on the same network?\n\n' +
-          'Try accessing: http://100.66.23.115:3001 in your browser.'
+          'Try accessing: http://100.66.16.34:3001 in your browser.'
         );
       } else if (err.message && err.message.includes('Network request failed')) {
         Alert.alert(
@@ -263,7 +276,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
         Alert.alert('Error', 'Order total not available.');
         return;
       }
-      const res = await fetch('http://100.66.23.115:3001/api/payment/create-paypal-order', {
+      const res = await fetch('http://100.66.16.34:3001/api/payment/create-paypal-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: backendTotal }),
@@ -297,6 +310,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
     setLoading(true);
     try {
       // Create order in database (similar to handlePayment but for cash)
+      const etaMinutes = getEtaMinutes();
       const rows = initialItems.map((item, index) => ({
         drink_id: item.drink_id,
         drink_name: item.name,
@@ -313,7 +327,8 @@ export default function OrderSummaryScreen({ route, navigation }) {
         method: method,
         paymentMethod: 'cash',
         tax: index === 0 ? initialTax : null,
-        tip: index === 0 ? initialTipValue : null
+        tip: index === 0 ? initialTipValue : null,
+        eta: index === 0 ? etaMinutes : null,
       }));
 
       const { data, error } = await supabase
@@ -344,6 +359,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+      <PersistentHeader navigation={navigation} title="Order Summary" />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -353,9 +369,6 @@ export default function OrderSummaryScreen({ route, navigation }) {
           <View style={{ flex: 1 }}>
             {/* Header and Order List Section - Fixed Height, Scrollable */}
             <View style={[styles.orderListContainer, { height: orderListHeight }]}>
-              <TouchableOpacity onPress={() => { Haptics.impactAsync(); navigation.goBack(); }} style={styles.backBtn}>
-                <Text style={styles.backText}>← Back</Text>
-              </TouchableOpacity>
               <Text style={styles.heading}>Review Your Order</Text>
 
               <FlatList

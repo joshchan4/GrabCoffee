@@ -16,6 +16,7 @@ import { CartContext } from "../context/CartContext"
 import IcedLatteImg from "../../assets/iced_latte.png"
 import { v4 as uuidv4 } from 'uuid';
 import * as Haptics from 'expo-haptics';
+import PersistentHeader from '../components/PersistentHeader';
 
 const COFFEE_MENU = [
   { drink_id: "1", name: "Iced Latte", price: 4.5, description: "Smooth espresso with cold milk over ice", image: IcedLatteImg },
@@ -136,10 +137,8 @@ export default function MenuScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>GRAB COFFEE.</Text>
-      </View>
-
+      <PersistentHeader navigation={navigation} />
+      
       <View style={styles.subHeader}>
         <Text style={styles.subtitle}>Note: Hot drinks 12 oz (355 ml), Iced drinks 16 oz (473 ml).</Text>
       </View>
@@ -300,30 +299,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f8f6f3",
-  },
-  header: {
-    backgroundColor: "#a8e4a0",
-    paddingTop: 80,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  headerTitle: {
-    fontSize: 32,
-    color: "white",
-    textAlign: "center",
-    ...Platform.select({
-      ios: { fontFamily: "AvenirNext-Bold", fontWeight: "500" },
-      android: { fontFamily: "sans-serif-condensed", fontWeight: "normal" },
-      web: { fontFamily: "Segoe UI Black, Arial Black, sans-serif", fontWeight: "500" },
-      default: { fontFamily: "System", fontWeight: "800" },
-    }),
   },
   subHeader: {
     paddingVertical: 20,

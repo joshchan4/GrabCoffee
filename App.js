@@ -15,6 +15,7 @@ import CartScreen from './src/screens/CartScreen';
 import OrderSummaryScreen from './src/screens/OrderSummaryScreen';
 import SignupScreen from './src/screens/SignupScreen';
 import OrderStatusScreen from './src/screens/OrderStatusScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
 
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
@@ -102,6 +103,11 @@ export default function App() {
               <Stack.Screen
                 name="OrderStatus"
                 component={OrderStatusScreen}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="Profile"
+                component={ProfileScreen}
                 options={{ headerShown: false }}
               />
             </Stack.Navigator>

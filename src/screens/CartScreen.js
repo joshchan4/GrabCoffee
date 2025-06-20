@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CartContext } from '../context/CartContext';
 import * as Haptics from 'expo-haptics';
 import { Swipeable } from 'react-native-gesture-handler';
+import PersistentHeader from '../components/PersistentHeader';
 
 export default function CartScreen({ navigation }) {
   const {
@@ -174,9 +175,7 @@ export default function CartScreen({ navigation }) {
   if (items.length === 0) {
     return (
       <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
+        <PersistentHeader navigation={navigation} title="Your Cart" />
         <Text style={styles.emptyText}>Your cart is empty.</Text>
       </SafeAreaView>
     );
@@ -185,9 +184,7 @@ export default function CartScreen({ navigation }) {
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }} keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0} >
       <SafeAreaView style={styles.container}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backText}>← Back</Text>
-        </TouchableOpacity>
+        <PersistentHeader navigation={navigation} title="Your Cart" />
         <FlatList
           ref={flatListRef}
           data={items}
