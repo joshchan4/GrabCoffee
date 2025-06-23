@@ -12,13 +12,13 @@ export default function OrderStatusScreen({ route, navigation }) {
   const [notified, setNotified] = useState({ ready: false, delayed: false });
 
   useEffect(() => {
-    let timerInterval, pollingInterval;
+    let pollingInterval;
 
     const startPolling = async () => {
       pollingInterval = setInterval(async () => {
         const { data, error } = await supabase
           .from('Orders')
-          .select('ready, delivered, delayed, estimated_delivery_time')
+          .select('ready, delivered, delayed, eta, created_at')
           .eq('id', orderId)
           .maybeSingle();
 
@@ -31,16 +31,20 @@ export default function OrderStatusScreen({ route, navigation }) {
           ready: isReady,
           delivered: isDelivered,
           delayed: isDelayed,
-          estimated_delivery_time: etaTime,
+          eta,
+          created_at,
         } = data;
 
-        if (etaTime) {
+        // Calculate minutes left from created_at + eta
+        if (eta && created_at) {
+          const placedTime = dayjs(created_at);
+          const etaTime = placedTime.add(eta, 'minute');
           const now = dayjs();
-          const eta = dayjs(etaTime);
-          const minutesLeft = eta.diff(now, 'minute');
+          const minutesLeft = etaTime.diff(now, 'minute');
           setEtaMinutesLeft(minutesLeft > 0 ? minutesLeft : 0);
         }
 
+        // READY
         if (isReady === 't' && !ready) {
           setReady(true);
           if (!notified.ready) {
@@ -55,6 +59,7 @@ export default function OrderStatusScreen({ route, navigation }) {
           }
         }
 
+        // DELAYED
         if (isDelayed && !delayed) {
           setDelayed(true);
           if (!notified.delayed) {
@@ -69,9 +74,9 @@ export default function OrderStatusScreen({ route, navigation }) {
           }
         }
 
+        // DELIVERED
         if (isDelivered === 't') {
           clearInterval(pollingInterval);
-          clearInterval(timerInterval);
           navigation.reset({
             index: 0,
             routes: [{ name: 'Cover' }],
@@ -126,3 +131,4 @@ const styles = StyleSheet.create({
     color: "white",
   },
 });
+
