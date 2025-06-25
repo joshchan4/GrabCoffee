@@ -10,6 +10,7 @@ import {
   StatusBar,
   Platform,
 } from "react-native";
+import * as Haptics from 'expo-haptics';
 
 const { width, height } = Dimensions.get("window");
 
@@ -18,7 +19,12 @@ export default function CoverScreen({ onFinish }) {
   const opacityAnim = useRef(new Animated.Value(1)).current;
   const [buttonLayout, setButtonLayout] = useState(null);
 
-  const triggerTransition = () => {
+  const triggerTransition = async () => {
+    // Special haptic: three quick vibrations, heavy to light
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), 100);
+    setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light), 200);
+
     // Fade in the soft cloud overlay (50% faster)
     Animated.timing(overlayOpacity, {
       toValue: 1,
@@ -45,17 +51,17 @@ export default function CoverScreen({ onFinish }) {
 
       <View style={styles.mainContent}>
         <Text style={styles.mainText}>GRAB</Text>
-        <Text style={styles.mainText}>COFFEE.</Text>
+        <Text style={styles.mainText}>COFFEE</Text>
       </View>
 
       <View style={styles.bottomContent}>
         <Text style={styles.tagline}>That Daily Good</Text>
         <TouchableOpacity
-          style={styles.getStartedButton}
+          style={styles.startButton}
           onPress={triggerTransition}
           onLayout={(e) => setButtonLayout(e.nativeEvent.layout)}
         >
-          <Text style={styles.getStartedText}>Order Now</Text>
+          <Text style={styles.startButtonText}>Order Now</Text>
         </TouchableOpacity>
       </View>
 
@@ -78,7 +84,7 @@ export default function CoverScreen({ onFinish }) {
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#a8e4a0",
+    backgroundColor: "#a0b796",
     zIndex: 10,
   },
   mainContent: {
@@ -117,20 +123,21 @@ const styles = StyleSheet.create({
     textAlign: "center",
     opacity: 0.9,
   },
-  getStartedButton: {
-    backgroundColor: "white",
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 30,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+  startButton: {
+    backgroundColor: '#a0b796',
+    paddingVertical: 18,
+    paddingHorizontal: 40,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  getStartedText: {
-    color: "#a8e4a0",
-    fontSize: 16,
-    fontWeight: "bold",
+  startButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });

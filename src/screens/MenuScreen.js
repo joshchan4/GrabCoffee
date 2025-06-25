@@ -1,5 +1,5 @@
 "use client"
-import { useContext, useState, useRef } from "react"
+import { useContext, useState, useRef, useEffect } from "react"
 import {
   View,
   Text,
@@ -17,36 +17,68 @@ import IcedLatteImg from "../../assets/iced_latte.png"
 import { v4 as uuidv4 } from 'uuid';
 import * as Haptics from 'expo-haptics';
 import PersistentHeader from '../components/PersistentHeader';
+import { supabase } from '../utils/supabase';
 
 const COFFEE_MENU = [
   { drink_id: "1", name: "Iced Latte", price: 4.5, description: "Smooth espresso with cold milk over ice", image: IcedLatteImg },
-  { drink_id: "2", name: "Hot Latte", price: 4, description: "Rich espresso with steamed milk and light foam", image: IcedLatteImg },
+  { drink_id: "2", name: "Latte", price: 4, description: "Rich espresso with steamed milk and light foam", image: IcedLatteImg },
   { drink_id: "3", name: "Iced Matcha Latte", price: 4.75, description: "Refreshing matcha with cold milk over ice", image: IcedLatteImg },
   { drink_id: "4", name: "Hot Matcha Latte", price: 4.25, description: "Premium matcha powder with steamed milk", image: IcedLatteImg },
   { drink_id: "5", name: "Iced Americano", price: 4, description: "Espresso shots with cold water over ice", image: IcedLatteImg },
-  { drink_id: "6", name: "Hot Americano", price: 3.5, description: "Bold espresso shots with hot water", image: IcedLatteImg },
+  { drink_id: "6", name: "Americano", price: 3.5, description: "Bold espresso shots with hot water", image: IcedLatteImg },
   { drink_id: "7", name: "Iced Cappuccino", price: 4.2, description: "Espresso with cold milk and cold foam over ice", image: IcedLatteImg },
-  { drink_id: "8", name: "Hot Cappuccino", price: 3.75, description: "Equal parts espresso, steamed milk, and foam", image: IcedLatteImg },
+  { drink_id: "8", name: "Cappuccino", price: 3.75, description: "Equal parts espresso, steamed milk, and foam", image: IcedLatteImg },
   { drink_id: "9", name: "Espresso", price: 3, description: "Plain espresso", image: IcedLatteImg },
 ]
 
 const GROUPED_MENU = {
   "Matcha Drinks": COFFEE_MENU.filter(item => item.name.toLowerCase().includes("matcha")),
   "Iced Drinks": COFFEE_MENU.filter(item => item.name.toLowerCase().startsWith("iced") && !item.name.toLowerCase().includes("matcha")),
-  "Hot Drinks": COFFEE_MENU.filter(item => (item.name.toLowerCase().startsWith("hot") || item.name.toLowerCase() === "espresso") && !item.name.toLowerCase().includes("matcha")),
+  "Hot Drinks": COFFEE_MENU.filter(item =>
+    (
+      item.name.toLowerCase().startsWith("hot") ||
+      ["latte", "americano", "cappuccino", "espresso"].includes(item.name.toLowerCase())
+    ) && !item.name.toLowerCase().includes("matcha")
+  ),
 }
 
 const CARD_WIDTH = Math.min(200, Dimensions.get("window").width * 0.7);
 
-export default function MenuScreen({ navigation }) {
+export default function MenuScreen({ navigation, showWelcomePopup = false, route }) {
   const { addToCart } = useContext(CartContext)
   const [modalVisible, setModalVisible] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
   const [sugarChoice, setSugarChoice] = useState(null)
   const [milkChoice, setMilkChoice] = useState(null)
   const [quantity, setQuantity] = useState(1)
+  const [welcomePopupVisible, setWelcomePopupVisible] = useState(false)
+  const [user, setUser] = useState(null)
+  const [hasCheckedUser, setHasCheckedUser] = useState(false)
   const holdInterval = useRef(null);
   const holdTimeout = useRef(null);
+
+  // Check user authentication status
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+      setHasCheckedUser(true);
+    };
+    
+    checkUser();
+  }, []);
+
+  // Show welcome popup only when CoverScreen is dismissed and user is not logged in
+  useEffect(() => {
+    if (showWelcomePopup && hasCheckedUser && !user) {
+      // Reduced delay for faster popup appearance
+      const timer = setTimeout(() => {
+        setWelcomePopupVisible(true);
+      }, 100); // Reduced from 500ms to 100ms
+      
+      return () => clearTimeout(timer);
+    }
+  }, [showWelcomePopup, hasCheckedUser, user]);
 
   const espressoIds = new Set(["9"])
   const americanoIds = new Set(["5", "6"])
@@ -137,7 +169,7 @@ export default function MenuScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <PersistentHeader navigation={navigation} />
+      <PersistentHeader navigation={navigation} route={route} />
       
       <View style={styles.subHeader}>
         <Text style={styles.subtitle}>Note: Hot drinks 12 oz (355 ml), Iced drinks 16 oz (473 ml).</Text>
@@ -168,6 +200,60 @@ export default function MenuScreen({ navigation }) {
         <Text style={styles.cartButtonText}>View Cart</Text>
       </TouchableOpacity>
 
+      {/* Welcome Popup for Guest Users */}
+      <Modal
+        visible={welcomePopupVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setWelcomePopupVisible(false)}
+      >
+        <View style={styles.welcomeOverlay}>
+          <View style={styles.welcomeContent}>
+            <Text style={styles.welcomeTitle}>Welcome to Grab Coffee!</Text>
+            <Text style={styles.welcomeSubtitle}>
+              Create an account to save your preferences and track your orders
+            </Text>
+            
+            <TouchableOpacity
+              style={styles.welcomeSignupButton}
+              onPress={() => {
+                Haptics.impactAsync();
+                setWelcomePopupVisible(false);
+                setTimeout(() => {
+                  navigation.navigate('Signup', { returnScreen: 'Menu' });
+                }, 50);
+              }}
+            >
+              <Text style={styles.welcomeButtonText}>Sign Up</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.welcomeLoginButton}
+              onPress={() => {
+                Haptics.impactAsync();
+                setWelcomePopupVisible(false);
+                setTimeout(() => {
+                  navigation.navigate('Login', { returnScreen: 'Menu' });
+                }, 50);
+              }}
+            >
+              <Text style={styles.welcomeLoginButtonText}>Log In</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.welcomeExitButton}
+              onPress={() => {
+                Haptics.impactAsync();
+                setWelcomePopupVisible(false);
+              }}
+            >
+              <Text style={styles.welcomeExitText}>Continue as Guest</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Existing Item Modal */}
       {modalVisible && (
         <Modal
           visible={modalVisible}
@@ -366,7 +452,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 8,
     right: 8,
-    backgroundColor: "#a8e4a0",
+    backgroundColor: "#a0b796",
     width: 32,
     height: 32,
     borderRadius: 16,
@@ -382,7 +468,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 30,
     right: 20,
-    backgroundColor: "#a8e4a0",
+    backgroundColor: "#a0b796",
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 20,
@@ -397,6 +483,81 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
+  // Welcome Popup Styles
+  welcomeOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  welcomeContent: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    width: "100%",
+    maxWidth: 320,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  welcomeTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#2c1810",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  welcomeSubtitle: {
+    fontSize: 16,
+    color: "#666",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  welcomeSignupButton: {
+    backgroundColor: '#a0b796',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginBottom: 12,
+    alignItems: 'center',
+    width: '100%',
+  },
+  welcomeButtonText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  welcomeLoginButton: {
+    backgroundColor: 'transparent',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginBottom: 12,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#a0b796',
+    width: '100%',
+  },
+  welcomeLoginButtonText: {
+    color: '#a0b796',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  welcomeExitButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  welcomeExitText: {
+    color: "#999",
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  // Existing Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -454,7 +615,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   choiceButtonSelected: {
-    backgroundColor: "#a8e4a0",
+    backgroundColor: "#a0b796",
   },
   choiceText: {
     color: "#333",
@@ -471,36 +632,39 @@ const styles = StyleSheet.create({
     marginVertical: 12,
   },
   qtyButton: {
-    backgroundColor: "#a8e4a0",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 25,
-    alignItems: "center",
-    justifyContent: "center",
-    marginHorizontal: 16,
+    backgroundColor: '#a0b796',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   qtyText: {
     color: "#fff",
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "600",
   },
   qtyNumber: {
     fontSize: 18,
     fontWeight: "600",
     color: "#333",
+    marginHorizontal: 20,
   },
   addToCartButton: {
-    backgroundColor: "#a8e4a0",
-    paddingVertical: 14,
-    paddingHorizontal: 30,
-    borderRadius: 25,
-    marginBottom: 12,
-    marginTop: 52,
-    width: "50%",
-    alignItems: "center",
-    shadowColor: "#6b4a3e",
+    backgroundColor: '#a0b796',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 16,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },

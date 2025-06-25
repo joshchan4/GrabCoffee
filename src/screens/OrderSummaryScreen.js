@@ -32,12 +32,75 @@ import PersistentHeader from '../components/PersistentHeader';
 const { height: screenHeight } = Dimensions.get('window');
 
 export default function OrderSummaryScreen({ route, navigation }) {
-  const { items: initialItems, total: initialTotal, tax: initialTax, tip: initialTipValue } = route.params
-  console.log("initial items", initialItems);
-  console.log("initial items length:", initialItems?.length);
-  console.log("initial items type:", typeof initialItems);
-  console.log("initial items is array:", Array.isArray(initialItems));
-  const { clearCart } = useContext(CartContext);
+  // Add proper error handling for missing route parameters
+  const routeParams = route?.params || {};
+  const { 
+    items: initialItems = [], 
+    total: initialTotal = 0, 
+    tax: initialTax = 0, 
+    tip: initialTipValue = 0 
+  } = routeParams;
+
+  // Get cart items from context as fallback
+  const { items: cartItems, clearCart } = useContext(CartContext);
+  
+  // Use route params if available, otherwise use cart context
+  const items = initialItems.length > 0 ? initialItems : cartItems;
+  const total = initialTotal > 0 ? initialTotal : cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const tax = initialTax > 0 ? initialTax : total * 0.13;
+  const tip = initialTipValue > 0 ? initialTipValue : 0;
+
+  // Check if we have valid items, if not, redirect back to cart
+  useEffect(() => {
+    if (!items || items.length === 0) {
+      Alert.alert(
+        'No Items Found',
+        'Your cart appears to be empty. Please add items to your cart first.',
+        [
+          {
+            text: 'Go to Menu',
+            onPress: () => navigation.navigate('Menu')
+          },
+          {
+            text: 'Go to Cart',
+            onPress: () => navigation.navigate('Cart')
+          }
+        ]
+      );
+    }
+  }, [items, navigation]);
+
+  // Don't render the main content if there are no items
+  if (!items || items.length === 0) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+        <PersistentHeader navigation={navigation} title="Order Summary" route={route} />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <Text style={{ fontSize: 18, color: '#666', textAlign: 'center', marginBottom: 20 }}>
+            No items found in your order.
+          </Text>
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#a0b796',
+              paddingVertical: 12,
+              paddingHorizontal: 24,
+              borderRadius: 8,
+            }}
+            onPress={() => navigation.navigate('Menu')}
+          >
+            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>
+              Go to Menu
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  console.log("items", items);
+  console.log("items length:", items?.length);
+  console.log("items type:", typeof items);
+  console.log("items is array:", Array.isArray(items));
   const scrollViewRef = useRef(null);
   const addressInputRef = useRef(null);
   const [deliverySectionY, setDeliverySectionY] = useState(0);
@@ -49,6 +112,8 @@ export default function OrderSummaryScreen({ route, navigation }) {
   const [address, setAddress] = useState('');
   const [loading, setLoading] = useState(false);
   const [method, setMethod] = useState('');
+  const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
 
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [paymentSheetReady, setPaymentSheetReady] = useState(false);
@@ -64,6 +129,12 @@ export default function OrderSummaryScreen({ route, navigation }) {
   const [paypalVisible, setPaypalVisible] = useState(false);
   const [cashModalVisible, setCashModalVisible] = useState(false);
   const [policyAccepted, setPolicyAccepted] = useState(false);
+  const [contactModalVisible, setContactModalVisible] = useState(false);
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactFormErrors, setContactFormErrors] = useState({});
+  const [isSubmittingContact, setIsSubmittingContact] = useState(false);
+  const [pendingPaymentMethod, setPendingPaymentMethod] = useState(null);
 
   // Calculate responsive height for order list
   const orderListHeight = Math.min(Math.max(screenHeight * 0.25, 150), 300);
@@ -83,6 +154,46 @@ export default function OrderSummaryScreen({ route, navigation }) {
     return method === 'pickup' ? DEFAULT_PICKUP_ETA_MINUTES : DEFAULT_DELIVERY_ETA_MINUTES;
   };
 
+  // Fetch user data and prefill fields if logged in
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  const fetchUserData = async () => {
+    try {
+      // Get current user
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (currentUser) {
+        setUser(currentUser);
+        
+        // Fetch profile data
+        const { data: profileData, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', currentUser.id)
+          .single();
+
+        if (!error && profileData) {
+          setUserProfile(profileData);
+          // Prefill name
+          if (profileData.full_name) {
+            setCustomerName(profileData.full_name);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    }
+  };
+
+  // Prefill address when delivery method is selected
+  const handleMethodChange = (selectedMethod) => {
+    setMethod(selectedMethod);
+    if (selectedMethod === 'delivery' && userProfile?.address) {
+      setAddress(userProfile.address);
+    }
+  };
+
   const handlePayment = async () => {
     if (!customerName.trim()) return Alert.alert('Please enter your name.')
     if (!address.trim() || !paymentMethod || !method) {
@@ -92,7 +203,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
     setLoading(true)
 
     const etaMinutes = getEtaMinutes();
-    const rows = initialItems.map((item, index) => ({
+    const rows = items.map((item, index) => ({
       drink_id:     item.drink_id,
       drink_name:   item.name,
       sugar:        item.sugar,
@@ -104,12 +215,13 @@ export default function OrderSummaryScreen({ route, navigation }) {
       delivered:    index === 0 ? 'f' : null,  // only first item gets 'f'
       ready:        index === 0 ? 'f' : null,  // only first item gets 'f'
       name:         customerName,
-      user_id:      null,
+      user_id:      user?.id || null,
       method:       method,
       paymentMethod: paymentMethod,
-      tax:           index === 0 ? initialTax : null,
-      tip:           index === 0 ? initialTipValue : null,
+      tax:           index === 0 ? tax : null,
+      tip:           index === 0 ? tip : null,
       eta:           index === 0 ? etaMinutes : null, // Only set on first row
+      order_time:    orderTime,
     }))
 
     const { data, error } = await supabase
@@ -138,26 +250,26 @@ export default function OrderSummaryScreen({ route, navigation }) {
     setLoading(true);
     try {
       console.log('📡 Making network request to create payment intent...');
-      console.log('🌐 URL: http://100.66.16.34:3001/api/payment/create-payment-intent');
+      console.log('🌐 URL: http://100.66.27.232:3001/api/payment/create-payment-intent');
       console.log('📦 Request payload:', {
-        items: initialItems,
+        items: items,
         customerName,
         address,
         method,
-        tax: initialTax,
-        tip: initialTipValue
+        tax: tax,
+        tip: tip
       });
       
-      const response = await fetch('http://100.66.16.34:3001/api/payment/create-payment-intent', {
+      const response = await fetch('http://100.66.27.232:3001/api/payment/create-payment-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: initialItems,
+          items: items,
           customerName,
           address,
           method,
-          tax: initialTax,
-          tip: initialTipValue
+          tax: tax,
+          tip: tip
         }),
       });
       
@@ -190,7 +302,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
           paymentSummaryItems: [
             {
               label: 'Grab Coffee',
-              amount: backendTotal || initialTotal.toFixed(2),
+              amount: backendTotal || total.toFixed(2),
             },
           ],
         },
@@ -231,7 +343,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
           '• Is your backend server running?\n' +
           '• Is the IP address correct?\n' +
           '• Are you on the same network?\n\n' +
-          'Try accessing: http://100.66.16.34:3001 in your browser.'
+          'Try accessing: http://100.66.27.232 in your browser.'
         );
       } else if (err.message && err.message.includes('Network request failed')) {
         Alert.alert(
@@ -276,7 +388,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
         Alert.alert('Error', 'Order total not available.');
         return;
       }
-      const res = await fetch('http://100.66.16.34:3001/api/payment/create-paypal-order', {
+      const res = await fetch('http://100.66.27.232:3001/api/payment/create-paypal-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: backendTotal }),
@@ -311,7 +423,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
     try {
       // Create order in database (similar to handlePayment but for cash)
       const etaMinutes = getEtaMinutes();
-      const rows = initialItems.map((item, index) => ({
+      const rows = items.map((item, index) => ({
         drink_id: item.drink_id,
         drink_name: item.name,
         sugar: item.sugar,
@@ -326,9 +438,10 @@ export default function OrderSummaryScreen({ route, navigation }) {
         user_id: null,
         method: method,
         paymentMethod: 'cash',
-        tax: index === 0 ? initialTax : null,
-        tip: index === 0 ? initialTipValue : null,
+        tax: index === 0 ? tax : null,
+        tip: index === 0 ? tip : null,
         eta: index === 0 ? etaMinutes : null,
+        order_time: orderTime,
       }));
 
       const { data, error } = await supabase
@@ -357,9 +470,110 @@ export default function OrderSummaryScreen({ route, navigation }) {
     }
   };
 
+  // --- Time Slot Generator and Validation Helper ---
+  const generateTimeSlots = () => {
+    const slots = [];
+    const pad = (n) => n.toString().padStart(2, '0');
+    const pushTime = (hour, minute) => {
+      slots.push({ label: `${pad(hour)}:${pad(minute)}`, value: `${pad(hour)}:${pad(minute)}` });
+    };
+    for (let hour = 8; hour < 11; hour++) {
+      for (let min = 0; min < 60; min += 15) pushTime(hour, min);
+    }
+    for (let hour = 13; hour < 18; hour++) {
+      for (let min = 0; min < 60; min += 15) pushTime(hour, min);
+    }
+    return slots;
+  };
+  const timeSlots = generateTimeSlots();
+  const isTimeValid = (timeStr) => {
+    if (!timeStr) return false;
+    const [hourStr] = timeStr.split(':');
+    const hour = parseInt(hourStr, 10);
+    return (hour >= 8 && hour < 11) || (hour >= 13 && hour < 18);
+  };
+
+  // --- Add state hooks for time picker ---
+  const [wantsToSchedule, setWantsToSchedule] = useState(false);
+  const [orderTime, setOrderTime] = useState(null);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+
+  // Contact form validation
+  const validateContactForm = () => {
+    const errors = {};
+    
+    // Phone validation (required)
+    if (!contactPhone.trim()) {
+      errors.phone = 'Phone number is required';
+    } else if (!/^\+?[\d\s\-\(\)]{10,}$/.test(contactPhone.trim())) {
+      errors.phone = 'Please enter a valid phone number';
+    }
+    
+    // Email validation (optional but must be valid if provided)
+    if (contactEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) {
+      errors.email = 'Please enter a valid email address';
+    }
+    
+    setContactFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Handle contact info submission
+  const handleContactSubmit = async () => {
+    if (!validateContactForm()) return;
+    
+    setIsSubmittingContact(true);
+    try {
+      // Store in no_profile table
+      const { error } = await supabase
+        .from('no_profile')
+        .insert({
+          name: customerName,
+          address: method === 'delivery' ? address : 'Pickup',
+          phone: contactPhone.trim(),
+          email: contactEmail.trim() || null,
+          order_id: null, // Will be updated after order creation
+          created_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('Error storing contact info:', error);
+        Alert.alert('Error', 'Failed to save contact information. Please try again.');
+        return;
+      }
+
+      setContactModalVisible(false);
+      // Proceed with the pending payment method
+      if (pendingPaymentMethod === 'card') {
+        setPaymentMethod('card');
+      } else if (pendingPaymentMethod === 'cash') {
+        handleCashPayment();
+      }
+    } catch (err) {
+      console.error('Contact submission error:', err);
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } finally {
+      setIsSubmittingContact(false);
+    }
+  };
+
+  // Handle payment method selection with contact check
+  const handlePaymentMethodSelect = async (method) => {
+    // Check if user is logged in and has profile
+    if (user && userProfile) {
+      // User is logged in with profile - proceed directly
+      setPaymentMethod(method);
+      return;
+    }
+
+    // For all other cases (not logged in or no profile), show contact modal
+    setPendingPaymentMethod(method);
+    setContactModalVisible(true);
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-      <PersistentHeader navigation={navigation} title="Order Summary" />
+      <PersistentHeader navigation={navigation} title="Order Summary" route={route} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -372,12 +586,12 @@ export default function OrderSummaryScreen({ route, navigation }) {
               <Text style={styles.heading}>Review Your Order</Text>
 
               <FlatList
-                data={initialItems || []}
+                data={items || []}
                 keyExtractor={(item, idx) => `${item?.id || idx}-${idx}`}
                 renderItem={({ item, index }) => (
                   <View style={[
                     styles.row,
-                    index === (initialItems?.length - 1) && { borderBottomWidth: 0 }
+                    index === (items?.length - 1) && { borderBottomWidth: 0 }
                   ]}>
                     <Text style={styles.name}>
                       {item?.name || 'Unknown Item'} ×{item?.quantity || 0}
@@ -410,21 +624,21 @@ export default function OrderSummaryScreen({ route, navigation }) {
                 <View style={styles.breakdownRow}>
                   <Text style={styles.breakdownLabel}>Subtotal</Text>
                   <Text style={styles.breakdownValue}>
-                    ${(initialTotal - initialTax - initialTipValue).toFixed(2)}
+                    ${(total - tax - tip).toFixed(2)}
                   </Text>
                 </View>
                 <View style={styles.breakdownRow}>
                   <Text style={styles.breakdownLabel}>Tax (HST)</Text>
-                  <Text style={styles.breakdownValue}>${initialTax.toFixed(2)}</Text>
+                  <Text style={styles.breakdownValue}>${tax.toFixed(2)}</Text>
                 </View>
                 <View style={styles.breakdownRow}>
                   <Text style={styles.breakdownLabel}>Tip</Text>
-                  <Text style={styles.breakdownValue}>${initialTipValue.toFixed(2)}</Text>
+                  <Text style={styles.breakdownValue}>${tip.toFixed(2)}</Text>
                 </View>
                 <View style={styles.breakdownRowTotal}>
                   <Text style={styles.breakdownTotalLabel}>Total</Text>
                   <Text style={styles.breakdownTotalValue}>
-                    ${backendTotal !== null ? backendTotal : initialTotal.toFixed(2)}
+                    ${backendTotal !== null ? backendTotal : total.toFixed(2)}
                   </Text>
                 </View>
               </View>
@@ -449,14 +663,21 @@ export default function OrderSummaryScreen({ route, navigation }) {
                   }
                 }}
               />
-
-              <TouchableOpacity
-                onPress={() => { Haptics.impactAsync(); navigation.navigate('Signup', { name: customerName }); }}
-              >
-                <Text style={styles.signupLink}>
-                  Want to make an account?
+              {user && userProfile?.full_name && (
+                <Text style={styles.prefilledNote}>
+                  ✓ Filled from your profile
                 </Text>
-              </TouchableOpacity>
+              )}
+
+              {!user && (
+                <TouchableOpacity
+                  onPress={() => { Haptics.impactAsync(); navigation.navigate('Signup', { name: customerName, returnScreen: 'OrderSummary' }); }}
+                >
+                  <Text style={styles.signupLink}>
+                    Want to make an account?
+                  </Text>
+                </TouchableOpacity>
+              )}
 
               <Text style={styles.label}>Delivery or Pickup?</Text>
               {method === 'pickup' && (
@@ -473,7 +694,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
                     styles.methodButton,
                     method === 'pickup' && styles.methodSelected,
                   ]}
-                  onPress={() => { if (!loading) { Haptics.impactAsync(); setMethod('pickup'); } }}
+                  onPress={() => { if (!loading) { Haptics.impactAsync(); handleMethodChange('pickup'); } }}
                 >
                   <Text
                     style={[
@@ -489,7 +710,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
                     styles.methodButton,
                     method === 'delivery' && styles.methodSelected,
                   ]}
-                  onPress={() => { if (!loading) { Haptics.impactAsync(); setMethod('delivery'); } }}
+                  onPress={() => { if (!loading) { Haptics.impactAsync(); handleMethodChange('delivery'); } }}
                 >
                   <Text
                     style={[
@@ -520,44 +741,122 @@ export default function OrderSummaryScreen({ route, navigation }) {
                       Keyboard.dismiss();
                     }}
                   />
+                  {user && userProfile?.address && address === userProfile.address && (
+                    <Text style={styles.prefilledNote}>
+                      ✓ Filled from your profile
+                    </Text>
+                  )}
                 </View>
               )}
 
-              <Text style={styles.label}>Payment Method</Text>
-              <View style={styles.methodRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.methodButton,
-                    paymentMethod === 'card' && styles.methodSelected,
-                  ]}
-                  onPress={() => { if (!loading) { Haptics.impactAsync(); setPaymentMethod('card'); } }}
-                >
-                  <Text
-                    style={[
-                      styles.methodText,
-                      paymentMethod === 'card' && styles.methodTextSelected,
-                    ]}
-                  >
-                    Pay by Card
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.methodButton,
-                    paymentMethod === 'cash' && styles.methodSelected,
-                  ]}
-                  onPress={() => { if (!loading) { Haptics.impactAsync(); setPaymentMethod('cash'); } }}
-                >
-                  <Text
-                    style={[
-                      styles.methodText,
-                      paymentMethod === 'cash' && styles.methodTextSelected,
-                    ]}
-                  >
-                    Pay in Cash
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              {method && (
+                <>
+                  <Text style={styles.label}>Order Method</Text>
+                  <View style={styles.methodRow}>
+                    <TouchableOpacity
+                      style={[styles.methodButton, !wantsToSchedule && styles.methodSelected]}
+                      onPress={() => {
+                        setWantsToSchedule(false);
+                        setOrderTime(null);
+                      }}
+                    >
+                      <Text style={[styles.methodText, !wantsToSchedule && styles.methodTextSelected]}>
+                        Order Now
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.methodButton, wantsToSchedule && styles.methodSelected]}
+                      onPress={() => setWantsToSchedule(true)}
+                    >
+                      <Text style={[styles.methodText, wantsToSchedule && styles.methodTextSelected]}>
+                        Schedule Order
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  {wantsToSchedule && (
+                    <>
+                      <Text style={styles.label}>Choose Pickup/Delivery Time</Text>
+                      <TouchableOpacity onPress={() => setShowTimePicker(true)} style={styles.timeInput}>
+                        <Text style={{ color: orderTime ? '#333' : '#999' }}>
+                          {typeof orderTime === 'string' ? orderTime : 'Select time'}
+                        </Text>
+                      </TouchableOpacity>
+                      {showTimePicker && (
+                        <View style={styles.timeListWrapper}>
+                          <ScrollView contentContainerStyle={{ paddingBottom: 10 }}>
+                            {timeSlots.map(({ label, value }) => (
+                              <TouchableOpacity
+                                key={value}
+                                onPress={() => {
+                                  setOrderTime(value);
+                                  setShowTimePicker(false);
+                                }}
+                                style={[
+                                  styles.timeOption,
+                                  orderTime === value && styles.timeOptionSelected,
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.timeOptionText,
+                                    orderTime === value && styles.timeOptionTextSelected,
+                                  ]}
+                                >
+                                  {label}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </ScrollView>
+                        </View>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* Only show Payment Method if method is selected */}
+              {method !== '' && (
+                <>
+                  <Text style={styles.label}>Payment Method</Text>
+                  <View style={styles.methodRow}>
+                    <TouchableOpacity
+                      style={[
+                        styles.methodButton,
+                        paymentMethod === 'card' && styles.methodSelected,
+                      ]}
+                      onPress={() => { if (!loading) { Haptics.impactAsync(); handlePaymentMethodSelect('card'); } }}
+                    >
+                      <Text
+                        style={[
+                          styles.methodText,
+                          paymentMethod === 'card' && styles.methodTextSelected,
+                        ]}
+                      >
+                        Pay by Card
+                      </Text>
+                    </TouchableOpacity>
+                    {/* Only show Pay in Cash if method is pickup */}
+                    {method === 'pickup' && (
+                      <TouchableOpacity
+                        style={[
+                          styles.methodButton,
+                          paymentMethod === 'cash' && styles.methodSelected,
+                        ]}
+                        onPress={() => { if (!loading) { Haptics.impactAsync(); handlePaymentMethodSelect('cash'); } }}
+                      >
+                        <Text
+                          style={[
+                            styles.methodText,
+                            paymentMethod === 'cash' && styles.methodTextSelected,
+                          ]}
+                        >
+                          Pay in Cash
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                </>
+              )}
 
               {/* Show payment options only if 'Pay by Card' is selected */}
               {paymentMethod === 'card' && (
@@ -711,7 +1010,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
         <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' }}>
             <TouchableOpacity onPress={() => setCashModalVisible(false)}>
-              <Text style={{ color: '#a8e4a0', fontSize: 16, fontWeight: '600' }}>← Cancel</Text>
+              <Text style={{ color: '#a0b796', fontSize: 16, fontWeight: '600' }}>← Cancel</Text>
             </TouchableOpacity>
             <Text style={{ fontWeight: '700', fontSize: 18, marginLeft: 16 }}>Cash Payment Policy</Text>
           </View>
@@ -737,7 +1036,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
               <View style={styles.totalContainer}>
                 <Text style={styles.policySection}>Your Total</Text>
                 <Text style={styles.policyTotal}>
-                  ${backendTotal !== null ? backendTotal : initialTotal.toFixed(2)}
+                  ${backendTotal !== null ? backendTotal : total.toFixed(2)}
                 </Text>
               </View>
 
@@ -771,6 +1070,89 @@ export default function OrderSummaryScreen({ route, navigation }) {
           </View>
         </SafeAreaView>
       </Modal>
+
+      {/* Contact Information Modal */}
+      <Modal
+        visible={contactModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setContactModalVisible(false)}
+      >
+        <View style={styles.contactOverlay}>
+          <View style={styles.contactContent}>
+            <Text style={styles.contactTitle}>Stay Updated</Text>
+            
+            <Text style={styles.contactText}>
+              Provide your contact information to receive order tracking updates and receipts.
+            </Text>
+
+            <Text style={styles.contactNote}>
+              If you already have an account, please{' '}
+              <Text 
+                style={styles.loginLink}
+                onPress={() => {
+                  setContactModalVisible(false);
+                  navigation.navigate('Login', { returnScreen: 'OrderSummary' });
+                }}
+              >
+                login here
+              </Text>
+              {' '}to continue.
+            </Text>
+
+            <Text style={styles.contactLabel}>Phone Number *</Text>
+            <TextInput
+              style={[styles.contactInput, contactFormErrors.phone && styles.contactInputError]}
+              placeholder="Enter your phone number"
+              value={contactPhone}
+              onChangeText={setContactPhone}
+              keyboardType="phone-pad"
+              returnKeyType="next"
+            />
+            {contactFormErrors.phone && (
+              <Text style={styles.errorText}>{contactFormErrors.phone}</Text>
+            )}
+
+            <Text style={styles.contactLabel}>Email Address (Optional)</Text>
+            <TextInput
+              style={[styles.contactInput, contactFormErrors.email && styles.contactInputError]}
+              placeholder="Enter your email address"
+              value={contactEmail}
+              onChangeText={setContactEmail}
+              keyboardType="email-address"
+              returnKeyType="done"
+              autoCapitalize="none"
+            />
+            {contactFormErrors.email && (
+              <Text style={styles.errorText}>{contactFormErrors.email}</Text>
+            )}
+
+            <Text style={styles.contactNote}>
+              * Phone number is required for order updates and delivery coordination.
+            </Text>
+
+            <TouchableOpacity
+              style={[
+                styles.contactButton,
+                (!contactPhone.trim() || isSubmittingContact) && styles.contactButtonDisabled,
+              ]}
+              onPress={handleContactSubmit}
+              disabled={!contactPhone.trim() || isSubmittingContact}
+            >
+              <Text style={styles.contactButtonText}>
+                {isSubmittingContact ? 'Saving...' : 'Continue with Payment'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.contactCancelButton}
+              onPress={() => setContactModalVisible(false)}
+            >
+              <Text style={styles.contactCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -787,6 +1169,7 @@ const styles = StyleSheet.create({
   },
   orderListContainer: {
     paddingHorizontal: 16,
+    paddingTop: 16,
     paddingBottom: 8,
     backgroundColor: '#ffffff',
   },
@@ -795,7 +1178,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
   },
   backText: {
-    color: '#a8e4a0',
+    color: '#a0b796',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -887,10 +1270,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   signupLink: {
-    color: "#a8e4a0",
-    marginTop: 8,
-    fontStyle: 'italic',
+    color: '#a0b796',
+    fontSize: 14,
     textDecorationLine: 'underline',
+    marginBottom: 20,
   },
   note: {
     fontSize: 12,
@@ -911,32 +1294,34 @@ const styles = StyleSheet.create({
   },
   methodButton: {
     flex: 1,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#a8e4a0",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 8,
-    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#a0b796',
     alignItems: 'center',
-    backgroundColor: "#fff",
+    marginHorizontal: 4,
   },
   methodSelected: {
-    backgroundColor: "#a8e4a0",
+    backgroundColor: '#a0b796',
   },
   methodText: {
-    color: "#a8e4a0",
+    fontSize: 16,
     fontWeight: '600',
+    color: '#a0b796',
   },
   methodTextSelected: {
     color: '#fff',
   },
 
   confirmButton: {
-    backgroundColor: "#a8e4a0",
+    backgroundColor: '#a0b796',
     paddingVertical: 16,
+    paddingHorizontal: 24,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 30,
-    shadowColor: "#000",
+    marginTop: 16,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -947,8 +1332,8 @@ const styles = StyleSheet.create({
   },
   confirmText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '600',
   },
 
   debugText: {
@@ -1001,7 +1386,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderWidth: 2,
-    borderColor: '#a8e4a0',
+    borderColor: '#a0b796',
     borderRadius: 4,
     marginRight: 12,
     marginTop: 2,
@@ -1009,7 +1394,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkboxChecked: {
-    backgroundColor: '#a8e4a0',
+    backgroundColor: '#a0b796',
   },
   checkmark: {
     color: '#fff',
@@ -1032,5 +1417,145 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: '#f8f9fa',
     borderRadius: 8,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#a0b796',
+  },
+  prefilledNote: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  timeInput: {
+    borderWidth: 1,
+    borderColor: '#cdd7ce',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 6,
+    backgroundColor: '#fff',
+  },
+  timeListWrapper: {
+    maxHeight: 200,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#cdd7ce',
+    borderRadius: 8,
+    marginTop: 6,
+  },
+  timeOption: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#cdd7ce',
+  },
+  timeOptionSelected: {
+    backgroundColor: '#a0b796',
+  },
+  timeOptionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  timeOptionTextSelected: {
+    color: '#fff',
+  },
+  contactContainer: {
+    marginBottom: 20,
+  },
+  contactTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  contactText: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  contactLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+    color: '#444',
+  },
+  contactInput: {
+    borderWidth: 1,
+    borderColor: '#cdd7ce',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    backgroundColor: '#fff',
+  },
+  contactInputError: {
+    borderColor: '#ff0000',
+  },
+  contactNote: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#ff0000',
+    marginTop: 4,
+  },
+  loginLink: {
+    color: '#a0b796',
+    fontSize: 14,
+    textDecorationLine: 'underline',
+  },
+  contactOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  contactContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 320,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  contactButton: {
+    backgroundColor: '#a0b796',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 16,
+    width: '100%',
+  },
+  contactButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  contactButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  contactCancelButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginTop: 8,
+  },
+  contactCancelText: {
+    color: '#999',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });

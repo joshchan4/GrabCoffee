@@ -57,7 +57,7 @@ export default function PickupMap() {
   }, [userLocation]);
 
   if (loading) {
-    return <ActivityIndicator style={{ marginVertical: 24 }} size="large" color="#a8e4a0" />;
+    return <ActivityIndicator style={{ marginVertical: 24 }} size="large" color="#a0b796" />;
   }
   if (errorMsg) {
     return (
@@ -86,9 +86,10 @@ export default function PickupMap() {
       >
         <Marker
           coordinate={PICKUP_COORDS}
-          title="Pickup Location"
-          description="10 Bellair Street, Toronto"
-          pinColor="#a8e4a0"
+          pinColor="#a0b796"
+          title="Grab Coffee Pickup"
+          description="Outside 10 Bellair Street"
+          strokeColor="#a0b796"
         />
         {userLocation && (
           <Polyline
@@ -96,7 +97,7 @@ export default function PickupMap() {
               { latitude: userLocation.latitude, longitude: userLocation.longitude },
               PICKUP_COORDS,
             ]}
-            strokeColor="#a8e4a0"
+            strokeColor="#a0b796"
             strokeWidth={3}
           />
         )}

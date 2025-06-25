@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: "#a8e4a0",
+    backgroundColor: "#a0b796",
   },
   text: {
     fontSize: 24,
@@ -124,5 +124,18 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: 'bold',
     color: "white",
+  },
+  statusButton: {
+    backgroundColor: '#a0b796',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
 });

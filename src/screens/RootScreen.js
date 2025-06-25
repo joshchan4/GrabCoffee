@@ -8,7 +8,7 @@ export default function RootScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <MenuScreen navigation={navigation} />
+      <MenuScreen navigation={navigation} showWelcomePopup={!showCover} />
       {showCover && (
         <CoverScreen onFinish={() => setShowCover(false)} />
       )}

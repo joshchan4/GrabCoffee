@@ -37,7 +37,7 @@ function makeHttpsRequest(url, options, data = null) {
 
 router.post('/create-payment-intent', async (req, res) => {
   try {
-    const { items, customerName, address, method, tax = 0, tip = 0 } = req.body;
+    const { items, customerName, address, method, tax = 0, tip = 0, order_time } = req.body;
 
     if (!items || items.length === 0) {
       return res.status(400).json({ error: 'No items provided.' });
@@ -78,6 +78,7 @@ router.post('/create-payment-intent', async (req, res) => {
       paymentMethod: 'apple-pay', // or set dynamically later
       tax: index === 0 ? tax : null,
       tip: index === 0 ? tip : null,
+      order_time: order_time,
     }));
 
     const { error: insertError } = await supabase.from('Orders').insert(rows);

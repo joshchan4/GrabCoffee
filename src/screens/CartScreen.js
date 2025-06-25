@@ -18,7 +18,7 @@ import * as Haptics from 'expo-haptics';
 import { Swipeable } from 'react-native-gesture-handler';
 import PersistentHeader from '../components/PersistentHeader';
 
-export default function CartScreen({ navigation }) {
+export default function CartScreen({ navigation, route }) {
   const {
     items,
     updateItemQuantity,
@@ -174,9 +174,11 @@ export default function CartScreen({ navigation }) {
 
   if (items.length === 0) {
     return (
-      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <PersistentHeader navigation={navigation} title="Your Cart" />
-        <Text style={styles.emptyText}>Your cart is empty.</Text>
+      <SafeAreaView style={styles.container}>
+        <PersistentHeader navigation={navigation} title="Your Cart" route={route} />
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>Your cart is empty.</Text>
+        </View>
       </SafeAreaView>
     );
   }
@@ -184,7 +186,7 @@ export default function CartScreen({ navigation }) {
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }} keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0} >
       <SafeAreaView style={styles.container}>
-        <PersistentHeader navigation={navigation} title="Your Cart" />
+        <PersistentHeader navigation={navigation} title="Your Cart" route={route} />
         <FlatList
           ref={flatListRef}
           data={items}
@@ -280,6 +282,15 @@ export default function CartScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   emptyText: {
     fontSize: 18,
     color: '#666',
@@ -287,16 +298,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   backBtn: {
-    marginTop: 16,
+    marginBottom: 16,
+    alignSelf: 'flex-start',
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
   backText: {
-    color: '#a8e4a0',
+    color: '#a0b796',
     fontSize: 16,
     fontWeight: '600',
   },     
-  container: { flex: 1, backgroundColor: '#fff' },
   listContainer: { padding: 16, paddingBottom: 100 },
   itemContainer: {
     backgroundColor: '#fafafa',
@@ -316,7 +327,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   qtyButton: {
-    backgroundColor: '#a8e4a0',
+    backgroundColor: '#a0b796',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -338,7 +349,7 @@ const styles = StyleSheet.create({
   },
   itemPrice: { fontSize: 16, fontWeight: '600', color: '#6b4a3e' },
   swipeRemove: {
-    backgroundColor: '#a8e4a0',
+    backgroundColor: '#a0b796',
     justifyContent: 'center',
     alignItems: 'center',
     flex: 1,
@@ -360,12 +371,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#a8e4a0',
+    borderColor: '#a0b796',
     backgroundColor: 'white',
   },
   
   tipSelected: {
-    backgroundColor: '#a8e4a0',
+    backgroundColor: '#a0b796',
   },
   
   tipText: {
@@ -395,7 +406,7 @@ const styles = StyleSheet.create({
   },
   totalText: { fontSize: 16, fontWeight: '600', textAlign: 'right', marginBottom: 2 },
   orderButton: {
-    backgroundColor: '#a8e4a0',
+    backgroundColor: '#a0b796',
     paddingVertical: 15,
     width: '100%',
     borderRadius: 6,
