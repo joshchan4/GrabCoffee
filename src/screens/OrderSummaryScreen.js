@@ -285,7 +285,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
     setLoading(true);
     try {
       console.log('📡 Making network request to create payment intent...');
-      console.log('🌐 URL: http://100.66.27.251:3001/api/payment/create-payment-intent');
+      console.log('🌐 URL: https://grab-coffee-global.onrender.com/api/payment/create-payment-intent');
       console.log('📦 Request payload:', {
         items: items,
         customerName,
@@ -298,7 +298,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
         save_payment_method: wantsToSavePayment
       });
       
-      const response = await fetch('http://100.66.27.251:3001/api/payment/create-payment-intent', {
+      const response = await fetch('https://grab-coffee-global.onrender.com/api/payment/create-payment-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -385,7 +385,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
           '• Is your backend server running?\n' +
           '• Is the IP address correct?\n' +
           '• Are you on the same network?\n\n' +
-          'Try accessing: http://100.66.25.5 in your browser.'
+          'Try accessing: https://grab-coffee-global.onrender.com in your browser.'
         );
       } else if (err.message && err.message.includes('Network request failed')) {
         Alert.alert(
@@ -445,7 +445,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
         Alert.alert('Error', 'Order total not available.');
         return;
       }
-      const res = await fetch('http://100.66.27.251:3001/api/payment/create-paypal-order', {
+      const res = await fetch('https://grab-coffee-global.onrender.com/api/payment/create-paypal-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: backendTotal }),

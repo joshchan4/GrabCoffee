@@ -174,7 +174,7 @@ router.post('/create-paypal-order', async (req, res) => {
 
     // 1. Get PayPal access token
     const auth = Buffer.from(`${process.env.PAYPAL_CLIENT_ID}:${process.env.PAYPAL_SECRET}`).toString('base64');
-    const tokenRes = await makeHttpsRequest('https://api-m.sandbox.paypal.com/v1/oauth2/token', {
+    const tokenRes = await makeHttpsRequest('https://api-m.paypal.com/v1/oauth2/token', {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${auth}`,
@@ -186,7 +186,7 @@ router.post('/create-paypal-order', async (req, res) => {
     if (!access_token) return res.status(500).json({ error: 'Failed to get PayPal access token.' });
 
     // 2. Create PayPal order
-    const orderRes = await makeHttpsRequest('https://api-m.sandbox.paypal.com/v2/checkout/orders', {
+    const orderRes = await makeHttpsRequest('https://api-m.paypal.com/v2/checkout/orders', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${access_token}`,
@@ -201,8 +201,8 @@ router.post('/create-paypal-order', async (req, res) => {
         }
       }],
       application_context: {
-        return_url: 'https://example.com/paypal-success', // TODO: Replace with your real return URL
-        cancel_url: 'https://example.com/paypal-cancel'   // TODO: Replace with your real cancel URL
+        return_url: 'https://grab-coffee-global.onrender.com/paypal-success',
+        cancel_url: 'https://grab-coffee-global.onrender.com/paypal-cancel'
       }
     }));
     
