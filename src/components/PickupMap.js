@@ -4,8 +4,8 @@ import MapView, { Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
 
 const PICKUP_COORDS = {
-  latitude: 43.6705,
-  longitude: -79.3901, // 10 Bellair Street, Toronto
+  latitude: 43.6476,
+  longitude: -79.3728, // 25 The Esplanade, Toronto
 };
 
 function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
@@ -88,7 +88,7 @@ export default function PickupMap() {
           coordinate={PICKUP_COORDS}
           pinColor="#a0b796"
           title="Grab Coffee Pickup"
-          description="Outside 10 Bellair Street"
+          description="Outside 25 The Esplanade"
           strokeColor="#a0b796"
         />
         {userLocation && (

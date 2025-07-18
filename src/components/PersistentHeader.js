@@ -70,7 +70,12 @@ export default function PersistentHeader({ navigation, title = "GRAB COFFEE.", r
     }
   };
 
-  const canGoBack = navigation.canGoBack();
+  // Hide back button on Menu screen or if this is the first screen in the stack
+  const canGoBack = navigation.canGoBack && navigation.canGoBack();
+  const shouldShowBackButton = canGoBack && route?.name !== 'Menu';
+  
+  // Hide profile button on PaymentInfo screen
+  const shouldShowProfileButton = route?.name !== 'PaymentInfo';
   
   // Determine font size based on title length
   const getTitleFontSize = () => {
@@ -84,7 +89,7 @@ export default function PersistentHeader({ navigation, title = "GRAB COFFEE.", r
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <View style={styles.leftContainer}>
-          {canGoBack && (
+          {shouldShowBackButton && (
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
               <Text style={styles.backButtonText}>←</Text>
             </TouchableOpacity>
@@ -96,6 +101,7 @@ export default function PersistentHeader({ navigation, title = "GRAB COFFEE.", r
         </View>
 
         <View style={styles.rightContainer}>
+          {shouldShowProfileButton && (
           <TouchableOpacity
             style={styles.profileButton}
             onPress={handleProfilePress}
@@ -120,6 +126,7 @@ export default function PersistentHeader({ navigation, title = "GRAB COFFEE.", r
               )}
             </View>
           </TouchableOpacity>
+          )}
         </View>
       </View>
     </SafeAreaView>

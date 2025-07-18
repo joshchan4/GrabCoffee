@@ -19,6 +19,7 @@ import SignupScreen from './src/screens/SignupScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import OrderStatusScreen from './src/screens/OrderStatusScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import PaymentInfoScreen from './src/screens/PaymentInfoScreen';
 
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
@@ -95,7 +96,7 @@ export default function App() {
 
   return (
     <StripeProvider
-      publishableKey={"pk_test_51QRM0nH4lvMQih5aQl7if1hNkakX4Y3LndxKQDRTaYXJoQcpmQh8HR8qjeVcvpMKdDwJjPAbHnS4DuhCFtS0K3y300tCCbfuZx"}
+      publishableKey={"pk_live_51RmGUtKNMjZu6jL77sJfWt5a9NzHzcoSBNxyE5W54YYCFNvmkUuzlGiqWV4hRyp7UswjooOgj3lBofaz9LpqOsUg00gOlAfe30"}
       merchantIdentifier="merchant.com.grabcoffee"
     >
       <GestureHandlerRootView style={{ flex: 1 }}>
@@ -151,6 +152,11 @@ export default function App() {
                 <Stack.Screen
                   name="Profile"
                   component={ProfileScreen}
+                  options={{ headerShown: false }}
+                />
+                <Stack.Screen
+                  name="PaymentInfo"
+                  component={PaymentInfoScreen}
                   options={{ headerShown: false }}
                 />
               </Stack.Navigator>

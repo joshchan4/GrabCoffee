@@ -338,6 +338,34 @@ export default function ProfileScreen({ navigation }) {
           </View>
         </View>
 
+        {/* Payment Methods Section */}
+        <View style={styles.profileSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Payment Methods</Text>
+          </View>
+
+          <View style={styles.infoContainer}>
+            <TouchableOpacity
+              style={styles.paymentMethodCard}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                navigation.navigate('PaymentInfo');
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={styles.paymentMethodContent}>
+                <View style={styles.paymentMethodInfo}>
+                  <Text style={styles.paymentMethodTitle}>Saved Payment Methods</Text>
+                  <Text style={styles.paymentMethodSubtitle}>Manage your cards & digital wallets</Text>
+                </View>
+                <View style={styles.paymentMethodArrow}>
+                  <Text style={styles.arrowText}>→</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Logout Section */}
         <View style={styles.logoutSection}>
           <TouchableOpacity
@@ -753,6 +781,44 @@ const styles = StyleSheet.create({
   },
   logoutButtonText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  paymentMethodCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#f8fff8',
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  paymentMethodContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  paymentMethodInfo: {
+    flex: 1,
+  },
+  paymentMethodTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 4,
+  },
+  paymentMethodSubtitle: {
+    fontSize: 16,
+    color: '#666',
+  },
+  paymentMethodArrow: {
+    marginLeft: 12,
+  },
+  arrowText: {
+    color: '#a0b796',
     fontSize: 16,
     fontWeight: '600',
   },

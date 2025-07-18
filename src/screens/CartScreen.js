@@ -36,7 +36,7 @@ export default function CartScreen({ navigation, route }) {
   const subtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   const tipValue = selectedTip === 'custom' ? parseFloat(customTip || 0) : (selectedTip / 100) * subtotal;
   const tax = subtotal * 0.13;
-  const total = subtotal + tipValue + tax;
+  const total = subtotal + tax + tipValue;
 
   useEffect(() => {
     Animated.timing(animatedTotal, {
@@ -85,75 +85,82 @@ export default function CartScreen({ navigation, route }) {
     };
 
     return (
-      <Swipeable
-        renderRightActions={() => (
+      <View style={styles.itemContainer}>
+        <View style={styles.itemInfo}>
+          <Text style={styles.itemName}>{item.name}</Text>
+          {item.name === 'Espresso Tonic' ? (
+            <Text style={styles.itemDetail}>
+              Extra Shot: {item.extraShot ? 'Yes (+$1.50)' : 'No'}
+            </Text>
+          ) : (
+            <>
+              {item.sugar != null && (
+                <Text style={styles.itemDetail}>
+                  Sugar: {typeof item.sugar === 'string' ? item.sugar.charAt(0).toUpperCase() + item.sugar.slice(1) : item.sugar}
+                </Text>
+              )}
+              {item.milkType && (
+                <Text style={styles.itemDetail}>
+                  Milk: {item.milkType === 'milk' ? 'Organic' : 'Oat'}{item.milkType === 'oat' ? ' (+$0.50)' : ''}
+                </Text>
+              )}
+              {item.extraShot && (
+                <Text style={styles.itemDetail}>
+                  Extra Shot: Yes (+$1.50)
+                </Text>
+              )}
+            </>
+          )}
+        </View>
+
+        <View style={styles.quantitySection}>
+          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+            <TouchableOpacity
+              style={styles.qtyButton}
+              onPressIn={() => {
+                Haptics.impactAsync();
+                bounce();
+                startHold(item.id, -1);
+              }}
+              onPressOut={stopHold}
+            >
+              <Text style={styles.qtyText}>–</Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          <Text style={styles.qtyNumber}>{item.quantity}</Text>
+
+          <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+            <TouchableOpacity
+              style={styles.qtyButton}
+              onPressIn={() => {
+                Haptics.impactAsync();
+                bounce();
+                startHold(item.id, 1);
+              }}
+              onPressOut={stopHold}
+            >
+              <Text style={styles.qtyText}>+</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+
+        <View style={styles.priceSection}>
+          <Text style={styles.itemPrice}>${subtotal.toFixed(2)}</Text>
+        </View>
+
+        <View style={styles.deleteOrderContainer}>
           <TouchableOpacity
-            style={styles.swipeRemove}
+            style={styles.deleteOrderButton}
             onPress={() => {
               Haptics.impactAsync();
               removeItem(item.id);
             }}
           >
-            <Text style={styles.removeText}>Remove</Text>
+            <Text style={styles.deleteOrderText}>Delete Order</Text>
           </TouchableOpacity>
-        )}
-      >
-        <View style={styles.itemContainer}>
-          <View style={styles.itemInfo}>
-            <Text style={styles.itemName}>{item.name}</Text>
-            {item.sugar != null && (
-              <Text style={styles.itemDetail}>
-                Sugar: {item.sugar ? 'Yes' : 'No'}
-              </Text>
-            )}
-            {item.milkType && (
-              <Text style={styles.itemDetail}>
-                Milk: {item.milkType === 'milk' ? 'Organic' : 'Oat'}
-              </Text>
-            )}
-          </View>
-
-          <View style={styles.quantitySection}>
-            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-              <TouchableOpacity
-                style={styles.qtyButton}
-                onPressIn={() => {
-                  Haptics.impactAsync();
-                  bounce();
-                  startHold(item.id, -1);
-                }}
-                onPressOut={stopHold}
-              >
-                <Text style={styles.qtyText}>–</Text>
-              </TouchableOpacity>
-            </Animated.View>
-
-            <Text style={styles.qtyNumber}>{item.quantity}</Text>
-
-            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-              <TouchableOpacity
-                style={styles.qtyButton}
-                onPressIn={() => {
-                  Haptics.impactAsync();
-                  bounce();
-                  startHold(item.id, 1);
-                }}
-                onPressOut={stopHold}
-              >
-                <Text style={styles.qtyText}>+</Text>
-              </TouchableOpacity>
-            </Animated.View>
-          </View>
-
-          <View style={styles.priceSection}>
-            <Text style={styles.itemPrice}>${subtotal.toFixed(2)}</Text>
-          </View>
-
-          <View style={{ alignItems: 'flex-end', marginTop: 4 }}>
-            <Text style={styles.swipeHint}>Swipe left to remove</Text>
-          </View>
         </View>
-      </Swipeable>
+      </View>
     );
   };
 
@@ -178,6 +185,12 @@ export default function CartScreen({ navigation, route }) {
         <PersistentHeader navigation={navigation} title="Your Cart" route={route} />
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>Your cart is empty.</Text>
+          <TouchableOpacity
+            style={{ marginTop: 24, backgroundColor: '#a0b796', padding: 14, borderRadius: 8 }}
+            onPress={() => navigation.replace('Menu')}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Back to Menu</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -231,7 +244,7 @@ export default function CartScreen({ navigation, route }) {
                 returnKeyType="done"
                 value={customTip}
                 onChangeText={setCustomTip}
-                placeholder="Enter tip %"
+                placeholder="Enter tip $"
                 placeholderTextColor="#aaa"
               />
               <Text style={styles.tipPreview}>
@@ -244,21 +257,19 @@ export default function CartScreen({ navigation, route }) {
         <View style={styles.footer}>
           <View style={styles.calcRow}>
             <Text style={styles.label}>Subtotal</Text>
-            <Text style={styles.amount}>${subtotal.toFixed(2)}</Text>
+            <Text style={styles.amount}>${Number(subtotal).toFixed(2)}</Text>
           </View>
           <View style={styles.calcRow}>
             <Text style={styles.label}>Tax (HST)</Text>
-            <Text style={styles.amount}>${tax.toFixed(2)}</Text>
+            <Text style={styles.amount}>${Number(tax).toFixed(2)}</Text>
           </View>
           <View style={styles.calcRow}>
             <Text style={styles.label}>Tip</Text>
-            <Text style={styles.amount}>${tipValue.toFixed(2)}</Text>
+            <Text style={styles.amount}>${Number(tipValue).toFixed(2)}</Text>
           </View>
           <View style={styles.calcRow}>
             <Text style={styles.label}>Total</Text>
-            <Text style={[styles.amount, { fontWeight: '700', fontSize: 16 }]}>
-              ${total.toFixed(2)}
-            </Text>
+            <Text style={[styles.amount, { fontWeight: '700', fontSize: 16 }]}>${Number(total).toFixed(2)}</Text>
           </View>
           <TouchableOpacity
             style={styles.orderButton}
@@ -266,7 +277,7 @@ export default function CartScreen({ navigation, route }) {
               Haptics.impactAsync();
               navigation.navigate('OrderSummary', {
                 items,
-                total,
+                subtotal,
                 tax,
                 tip: tipValue,
               });
@@ -274,7 +285,6 @@ export default function CartScreen({ navigation, route }) {
           >
             <Text style={styles.orderButtonText}>Place Order</Text>
           </TouchableOpacity>
-          <Text style={styles.paymentHint}>Payment will be completed on the next screen.</Text>
         </View>
       </SafeAreaView>
     </KeyboardAvoidingView>
@@ -318,7 +328,7 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   itemInfo: { marginBottom: 8 },
-  itemName: { fontSize: 16, fontWeight: '600', color: '#2c1810' },
+  itemName: { fontSize: 20, fontWeight: '700', color: '#2c1810' },
   itemDetail: { fontSize: 14, color: '#555', marginTop: 2 },
   swipeHint: { fontSize: 12, color: '#888' },
   quantitySection: {
@@ -440,4 +450,24 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginBottom: 16,
   },   
+  deleteOrderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+  },
+  deleteOrderButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#bbb',
+    paddingVertical: 5,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteOrderText: {
+    color: '#888',
+    fontWeight: '400',
+    fontSize: 13,
+  },
 });

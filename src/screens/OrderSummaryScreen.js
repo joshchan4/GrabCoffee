@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect, useRef } from 'react'
+import React, { useState, useContext, useEffect, useRef, useCallback } from 'react'
 import {
   View,
   Text,
@@ -36,7 +36,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
   const routeParams = route?.params || {};
   const { 
     items: initialItems = [], 
-    total: initialTotal = 0, 
+    subtotal: initialSubtotal = 0, 
     tax: initialTax = 0, 
     tip: initialTipValue = 0 
   } = routeParams;
@@ -46,9 +46,11 @@ export default function OrderSummaryScreen({ route, navigation }) {
   
   // Use route params if available, otherwise use cart context
   const items = initialItems.length > 0 ? initialItems : cartItems;
-  const total = initialTotal > 0 ? initialTotal : cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const tax = initialTax > 0 ? initialTax : total * 0.13;
-  const tip = initialTipValue > 0 ? initialTipValue : 0;
+  // Use values from route params if provided, otherwise fallback to calculation
+  const subtotal = initialSubtotal > 0 ? initialSubtotal : cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const tax = route?.params?.tax !== undefined ? route.params.tax : (initialTax > 0 ? initialTax : subtotal * 0.13);
+  const tip = route?.params?.tip !== undefined ? route.params.tip : (initialTipValue > 0 ? initialTipValue : 0);
+  const total = subtotal + tax + tip;
 
   // Check if we have valid items, if not, redirect back to cart
   useEffect(() => {
@@ -114,11 +116,16 @@ export default function OrderSummaryScreen({ route, navigation }) {
   const [method, setMethod] = useState('');
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
+  const [savedPaymentMethods, setSavedPaymentMethods] = useState([]);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
+  const [showSavedPaymentMethods, setShowSavedPaymentMethods] = useState(false);
 
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [paymentSheetReady, setPaymentSheetReady] = useState(false);
   const [clientSecret, setClientSecret] = useState(null);
   const [backendTotal, setBackendTotal] = useState(null); // Store backend total for payment
+  const [orderId, setOrderId] = useState(null); // Store order ID from backend
+  const [orderRows, setOrderRows] = useState(null);
 
   const [paymentMethod, setPaymentMethod] = useState(null); // 'card' | 'cash'
   const {
@@ -135,6 +142,8 @@ export default function OrderSummaryScreen({ route, navigation }) {
   const [contactFormErrors, setContactFormErrors] = useState({});
   const [isSubmittingContact, setIsSubmittingContact] = useState(false);
   const [pendingPaymentMethod, setPendingPaymentMethod] = useState(null);
+  const [mapExpanded, setMapExpanded] = useState(false);
+  const [nameInputY, setNameInputY] = useState(0);
 
   // Calculate responsive height for order list
   const orderListHeight = Math.min(Math.max(screenHeight * 0.25, 150), 300);
@@ -163,6 +172,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
     try {
       // Get current user
       const { data: { user: currentUser } } = await supabase.auth.getUser();
+      console.log('Current user:', currentUser);
       if (currentUser) {
         setUser(currentUser);
         
@@ -180,9 +190,28 @@ export default function OrderSummaryScreen({ route, navigation }) {
             setCustomerName(profileData.full_name);
           }
         }
+
+        // Fetch saved payment methods
+        await loadSavedPaymentMethods(currentUser.id);
       }
     } catch (error) {
       console.error('Error fetching user data:', error);
+    }
+  };
+
+  const loadSavedPaymentMethods = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from('payment_methods')
+        .select('*')
+        .eq('user_id', userId)
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: false });
+      console.log('Loaded payment methods:', data, 'Error:', error);
+      if (error) throw error;
+      setSavedPaymentMethods(data || []);
+    } catch (error) {
+      console.error('Error loading saved payment methods:', error);
     }
   };
 
@@ -203,26 +232,32 @@ export default function OrderSummaryScreen({ route, navigation }) {
     setLoading(true)
 
     const etaMinutes = getEtaMinutes();
-    const rows = items.map((item, index) => ({
-      drink_id:     item.drink_id,
-      drink_name:   item.name,
-      sugar:        item.sugar,
-      milk:         item.milkType,
-      price:        item.price,
-      quantity:     item.quantity,
-      totalAmount:  item.price * item.quantity,
-      location:     address,
-      delivered:    index === 0 ? 'f' : null,  // only first item gets 'f'
-      ready:        index === 0 ? 'f' : null,  // only first item gets 'f'
-      name:         customerName,
-      user_id:      user?.id || null,
-      method:       method,
-      paymentMethod: paymentMethod,
-      tax:           index === 0 ? tax : null,
-      tip:           index === 0 ? tip : null,
-      eta:           index === 0 ? etaMinutes : null, // Only set on first row
-      order_time:    orderTime,
-    }))
+    const rows = items.map((item, index) => {
+      const itemSubtotal = item.price * item.quantity;
+      const taxShare = subtotal > 0 ? (itemSubtotal / subtotal) * tax : 0;
+      const tipShare = subtotal > 0 ? (itemSubtotal / subtotal) * tip : 0;
+      
+      return {
+        drink_id:     item.drink_id,
+        drink_name:   item.name,
+        sugar:        item.sugar,
+        milk:         item.milkType,
+        price:        item.price,
+        quantity:     item.quantity,
+        totalAmount:  itemSubtotal + taxShare + tipShare,
+        location:     address,
+        delivered:    index === 0 ? false : null,  // only first item gets false
+        ready:        index === 0 ? false : null,  // only first item gets false
+        name:         customerName,
+        user_id:      user?.id || null,
+        method:       method,
+        paymentMethod: paymentMethod,
+        tax:           index === 0 ? tax : null,
+        tip:           index === 0 ? tip : null,
+        eta:           index === 0 ? etaMinutes : null, // Only set on first row
+        order_time:    orderTime,
+      };
+    })
 
     const { data, error } = await supabase
       .from('Orders')
@@ -250,17 +285,20 @@ export default function OrderSummaryScreen({ route, navigation }) {
     setLoading(true);
     try {
       console.log('📡 Making network request to create payment intent...');
-      console.log('🌐 URL: http://100.66.27.232:3001/api/payment/create-payment-intent');
+      console.log('🌐 URL: http://100.66.27.251:3001/api/payment/create-payment-intent');
       console.log('📦 Request payload:', {
         items: items,
         customerName,
         address,
         method,
         tax: tax,
-        tip: tip
+        tip: tip,
+        paymentMethodId: selectedPaymentMethod?.stripe_payment_method_id || null,
+        userId: user?.id || null,
+        save_payment_method: wantsToSavePayment
       });
       
-      const response = await fetch('http://100.66.27.232:3001/api/payment/create-payment-intent', {
+      const response = await fetch('http://100.66.27.251:3001/api/payment/create-payment-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -269,7 +307,10 @@ export default function OrderSummaryScreen({ route, navigation }) {
           address,
           method,
           tax: tax,
-          tip: tip
+          tip: tip,
+          paymentMethodId: selectedPaymentMethod?.stripe_payment_method_id || null,
+          userId: user?.id || null,
+          save_payment_method: wantsToSavePayment
         }),
       });
       
@@ -285,8 +326,9 @@ export default function OrderSummaryScreen({ route, navigation }) {
       const responseData = await response.json();
       console.log('✅ Payment intent response received:', responseData);
       
-      const { clientSecret, amount } = responseData;
+      const { clientSecret, amount, orderId } = responseData;
       if (amount) setBackendTotal(amount); // Store backend total
+      if (orderId) setOrderId(orderId); // Store order ID
   
       if (!clientSecret) {
         console.error('❌ Missing clientSecret in response');
@@ -343,7 +385,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
           '• Is your backend server running?\n' +
           '• Is the IP address correct?\n' +
           '• Are you on the same network?\n\n' +
-          'Try accessing: http://100.66.27.232 in your browser.'
+          'Try accessing: http://100.66.25.5 in your browser.'
         );
       } else if (err.message && err.message.includes('Network request failed')) {
         Alert.alert(
@@ -367,6 +409,21 @@ export default function OrderSummaryScreen({ route, navigation }) {
     }
   }, [paymentMethod]);
 
+  // Fetch order rows from Supabase after orderId is set
+  useEffect(() => {
+    if (orderId) {
+      (async () => {
+        const { data, error } = await supabase
+          .from('Orders')
+          .select('id, drink_name, quantity, totalAmount')
+          .eq('id', orderId);
+        if (!error && data && data.length > 0) {
+          setOrderRows(data);
+        }
+      })();
+    }
+  }, [orderId]);
+
   const scrollToInput = () => {
     if (scrollViewRef.current && deliverySectionY > 0) {
       // Scroll to show the delivery address section with some padding
@@ -388,7 +445,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
         Alert.alert('Error', 'Order total not available.');
         return;
       }
-      const res = await fetch('http://100.66.27.232:3001/api/payment/create-paypal-order', {
+      const res = await fetch('http://100.66.27.251:3001/api/payment/create-paypal-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: backendTotal }),
@@ -423,26 +480,32 @@ export default function OrderSummaryScreen({ route, navigation }) {
     try {
       // Create order in database (similar to handlePayment but for cash)
       const etaMinutes = getEtaMinutes();
-      const rows = items.map((item, index) => ({
-        drink_id: item.drink_id,
-        drink_name: item.name,
-        sugar: item.sugar,
-        milk: item.milkType,
-        price: item.price,
-        quantity: item.quantity,
-        totalAmount: item.price * item.quantity,
-        location: method === 'delivery' ? address : 'Pickup',
-        delivered: index === 0 ? 'f' : null,
-        ready: index === 0 ? 'f' : null,
-        name: customerName,
-        user_id: null,
-        method: method,
-        paymentMethod: 'cash',
-        tax: index === 0 ? tax : null,
-        tip: index === 0 ? tip : null,
-        eta: index === 0 ? etaMinutes : null,
-        order_time: orderTime,
-      }));
+      const rows = items.map((item, index) => {
+        const itemSubtotal = item.price * item.quantity;
+        const taxShare = subtotal > 0 ? (itemSubtotal / subtotal) * tax : 0;
+        const tipShare = subtotal > 0 ? (itemSubtotal / subtotal) * tip : 0;
+        
+        return {
+          drink_id: item.drink_id,
+          drink_name: item.name,
+          sugar: item.sugar,
+          milk: item.milkType,
+          price: item.price,
+          quantity: item.quantity,
+          totalAmount: itemSubtotal + taxShare + tipShare,
+          location: method === 'delivery' ? address : 'Pickup',
+          delivered: index === 0 ? false : null,
+          ready: index === 0 ? false : null,
+          name: customerName,
+          user_id: null,
+          method: method,
+          paymentMethod: 'cash',
+          tax: index === 0 ? tax : null,
+          tip: index === 0 ? tip : null,
+          eta: index === 0 ? etaMinutes : null,
+          order_time: orderTime,
+        };
+      });
 
       const { data, error } = await supabase
         .from('Orders')
@@ -571,6 +634,77 @@ export default function OrderSummaryScreen({ route, navigation }) {
     setContactModalVisible(true);
   };
 
+  const handleSavedPaymentMethodSelect = (paymentMethod) => {
+    setSelectedPaymentMethod(paymentMethod);
+    setShowSavedPaymentMethods(false);
+    // Prefill payment sheet with saved method
+    if (paymentMethod) {
+      setPaymentMethod('card');
+    }
+  };
+
+  const formatCardNumber = (last4) => {
+    return `•••• •••• •••• ${last4}`;
+  };
+
+  const getCardTypeIcon = (cardType) => {
+    switch (cardType?.toLowerCase()) {
+      case 'visa':
+        return '💳';
+      case 'mastercard':
+        return '💳';
+      case 'amex':
+        return '💳';
+      default:
+        return '💳';
+    }
+  };
+
+  const [showSaveCardModal, setShowSaveCardModal] = useState(false);
+  const [lastPaymentMethodId, setLastPaymentMethodId] = useState(null);
+
+  const [wantsToSavePayment, setWantsToSavePayment] = useState(true); // default to true
+
+  const handlePaymentSuccess = async (paymentIntent) => {
+    if (user && paymentIntent?.payment_method) {
+      setLastPaymentMethodId(paymentIntent.payment_method);
+      // If user has no saved payment methods and does not want to save, delete after payment
+      if (savedPaymentMethods.length === 0 && !wantsToSavePayment) {
+        await supabase
+          .from('payment_methods')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('stripe_payment_method_id', paymentIntent.payment_method);
+        clearCart();
+        navigation.navigate('OrderStatus', { orderId: orderId });
+        return;
+      }
+      setShowSaveCardModal(true);
+    } else {
+      clearCart();
+      navigation.navigate('OrderStatus', { orderId: orderId });
+    }
+    if (user) {
+      await loadSavedPaymentMethods(user.id);
+    }
+  };
+
+  console.log('Selected payment method:', selectedPaymentMethod);
+
+  const nameInputRef = useRef(null);
+  const keyboardListenerRef = useRef(null);
+
+  // Helper to scroll to the name input after keyboard shows (for not-logged-in users)
+  const scrollToNameInput = useCallback(() => {
+    if (scrollViewRef.current) {
+      const y = Math.max(nameInputY - 5, 0);
+      scrollViewRef.current.scrollTo({ y, animated: false });
+      setTimeout(() => {
+        scrollViewRef.current.scrollTo({ y, animated: true });
+      }, 10); // very short delay for a snappy animation
+    }
+  }, [nameInputY]);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
       <PersistentHeader navigation={navigation} title="Order Summary" route={route} />
@@ -586,18 +720,20 @@ export default function OrderSummaryScreen({ route, navigation }) {
               <Text style={styles.heading}>Review Your Order</Text>
 
               <FlatList
-                data={items || []}
+                data={orderRows || items || []}
                 keyExtractor={(item, idx) => `${item?.id || idx}-${idx}`}
                 renderItem={({ item, index }) => (
                   <View style={[
                     styles.row,
-                    index === (items?.length - 1) && { borderBottomWidth: 0 }
+                    index === ((orderRows || items)?.length - 1) && { borderBottomWidth: 0 }
                   ]}>
                     <Text style={styles.name}>
-                      {item?.name || 'Unknown Item'} ×{item?.quantity || 0}
+                      {item?.drink_name || item?.name || 'Unknown Item'} ×{item?.quantity || 0}
                     </Text>
                     <Text style={styles.price}>
-                      ${((item?.price || 0) * (item?.quantity || 0)).toFixed(2)}
+                      {item?.totalAmount !== undefined
+                        ? `$${Number(item.totalAmount).toFixed(2)}`
+                        : `$${((item?.price || 0) * (item?.quantity || 0)).toFixed(2)}`}
                     </Text>
                   </View>
                 )}
@@ -623,18 +759,13 @@ export default function OrderSummaryScreen({ route, navigation }) {
               <View style={styles.breakdownContainer}>
                 <View style={styles.breakdownRow}>
                   <Text style={styles.breakdownLabel}>Subtotal</Text>
-                  <Text style={styles.breakdownValue}>
-                    ${(total - tax - tip).toFixed(2)}
-                  </Text>
+                  <Text style={styles.breakdownValue}>${subtotal.toFixed(2)}</Text>
                 </View>
                 <View style={styles.breakdownRow}>
                   <Text style={styles.breakdownLabel}>Tax (HST)</Text>
                   <Text style={styles.breakdownValue}>${tax.toFixed(2)}</Text>
                 </View>
-                <View style={styles.breakdownRow}>
-                  <Text style={styles.breakdownLabel}>Tip</Text>
-                  <Text style={styles.breakdownValue}>${tip.toFixed(2)}</Text>
-                </View>
+                {/* Tip row removed from breakdown */}
                 <View style={styles.breakdownRowTotal}>
                   <Text style={styles.breakdownTotalLabel}>Total</Text>
                   <Text style={styles.breakdownTotalValue}>
@@ -645,6 +776,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
 
               <Text style={styles.label}>Your Name</Text>
               <TextInput
+                ref={nameInputRef}
                 style={styles.input}
                 placeholder="Enter your name"
                 value={customerName}
@@ -652,6 +784,22 @@ export default function OrderSummaryScreen({ route, navigation }) {
                 editable={!loading}
                 returnKeyType="next"
                 blurOnSubmit={false}
+                onLayout={event => {
+                  setNameInputY(event.nativeEvent.layout.y);
+                }}
+                onFocus={() => {
+                  if (!user) {
+                    // Add keyboard show listener
+                    keyboardListenerRef.current = Keyboard.addListener('keyboardDidShow', scrollToNameInput);
+                  }
+                }}
+                onBlur={() => {
+                  // Remove keyboard show listener
+                  if (keyboardListenerRef.current) {
+                    keyboardListenerRef.current.remove();
+                    keyboardListenerRef.current = null;
+                  }
+                }}
                 onSubmitEditing={() => {
                   // Focus next input or dismiss keyboard
                   if (method === 'delivery') {
@@ -683,9 +831,17 @@ export default function OrderSummaryScreen({ route, navigation }) {
               {method === 'pickup' && (
                 <>
                   <Text style={styles.note}>
-                    Pickup location: Outside 10 Bellair Street
+                    Pickup location: Outside 25 The Esplanade
                   </Text>
-                  <PickupMap />
+                  <TouchableOpacity 
+                    style={styles.mapToggleButton}
+                    onPress={() => setMapExpanded(!mapExpanded)}
+                  >
+                    <Text style={styles.mapToggleText}>
+                      {mapExpanded ? 'Hide Map' : 'Show Map'}
+                    </Text>
+                  </TouchableOpacity>
+                  {mapExpanded && <PickupMap />}
                 </>
               )}
               <View style={styles.methodRow}>
@@ -861,6 +1017,34 @@ export default function OrderSummaryScreen({ route, navigation }) {
               {/* Show payment options only if 'Pay by Card' is selected */}
               {paymentMethod === 'card' && (
                 <View style={{ marginTop: 18 }}>
+                  {/* Show saved payment methods section if user is logged in */}
+                  {user && (
+                    <View style={[
+                      styles.savedPaymentSection,
+                      savedPaymentMethods.length > 0 && { borderWidth: 0, backgroundColor: 'transparent', padding: 0, marginBottom: 0 }
+                    ]}>
+                      {savedPaymentMethods.length > 0 ? (
+                        <>
+                          {/* <Text style={styles.savedPaymentTitle}>Do you want to use your saved payment info?</Text> */}
+                          {/* Hiding saved payment info UI since payment info screen is disabled */}
+                        </>
+                      ) : (
+                        <>
+                          <Text style={styles.savedPaymentTitle}>Would you like to save your payment info for future orders?</Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                            <TouchableOpacity
+                              style={[styles.checkbox, wantsToSavePayment && styles.checkboxChecked]}
+                              onPress={() => setWantsToSavePayment(!wantsToSavePayment)}
+                            >
+                              {wantsToSavePayment && <Text style={styles.checkmark}>✓</Text>}
+                            </TouchableOpacity>
+                            <Text style={styles.checkboxText}>Save payment info</Text>
+                          </View>
+                        </>
+                      )}
+                    </View>
+                  )}
+
                   {/* Pay via Credit/Debit (includes Apple Pay) */}
                   <TouchableOpacity
                     style={[
@@ -885,13 +1069,13 @@ export default function OrderSummaryScreen({ route, navigation }) {
                       if (paymentMethod === 'card') {
                         console.log('Presenting payment sheet with clientSecret:', clientSecret);
                         try {
-                          const { error } = await presentPaymentSheet();
+                          const result = await presentPaymentSheet();
+                          console.log('presentPaymentSheet result:', result);
+                          const { error, paymentIntent } = result;
                           if (error) {
                             Alert.alert('Payment failed', error.message);
                           } else {
-                            Alert.alert('Success', 'Your order is placed!');
-                            clearCart();
-                            navigation.navigate('OrderStatus', { orderId: clientSecret });
+                            await handlePaymentSuccess(paymentIntent);
                           }
                         } catch (err) {
                           console.error('Payment sheet error:', err);
@@ -1153,6 +1337,131 @@ export default function OrderSummaryScreen({ route, navigation }) {
           </View>
         </View>
       </Modal>
+
+      {/* Saved Payment Methods Modal */}
+      <Modal
+        visible={showSavedPaymentMethods}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowSavedPaymentMethods(false)}
+      >
+        <View style={styles.paymentMethodsOverlay}>
+          <View style={styles.paymentMethodsContent}>
+            <View style={styles.paymentMethodsHeader}>
+              <Text style={styles.paymentMethodsTitle}>Select Payment Method</Text>
+              <TouchableOpacity onPress={() => setShowSavedPaymentMethods(false)}>
+                <Text style={styles.closeButton}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.paymentMethodsList}>
+              {savedPaymentMethods.map((method, index) => (
+                <TouchableOpacity
+                  key={method.id}
+                  style={[
+                    styles.paymentMethodOption,
+                    selectedPaymentMethod?.id === method.id && styles.paymentMethodOptionSelected
+                  ]}
+                  onPress={() => handleSavedPaymentMethodSelect(method)}
+                >
+                  <Text style={styles.paymentMethodIcon}>{getCardTypeIcon(method.card_type)}</Text>
+                  <View style={styles.paymentMethodDetails}>
+                    <Text style={styles.paymentMethodLabel}>
+                      {method.card_type} •••• {method.last4}
+                    </Text>
+                    <Text style={styles.paymentMethodSubtext}>
+                      Expires {method.exp_month}/{method.exp_year}
+                      {method.is_default && ' • Default'}
+                    </Text>
+                  </View>
+                  {selectedPaymentMethod?.id === method.id && (
+                    <Text style={styles.selectedCheckmark}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            
+            <TouchableOpacity
+              style={styles.paymentMethodsCancelButton}
+              onPress={() => setShowSavedPaymentMethods(false)}
+            >
+              <Text style={styles.paymentMethodsCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Save Card Modal */}
+      <Modal
+        visible={showSaveCardModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSaveCardModal(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          justifyContent: 'center',
+          alignItems: 'center'
+        }}>
+          <View style={{
+            backgroundColor: '#fff',
+            borderRadius: 16,
+            padding: 24,
+            alignItems: 'center',
+            width: '80%',
+            maxWidth: 320,
+          }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 16 }}>
+              Save this card for future orders?
+            </Text>
+            <Text style={{ fontSize: 15, color: '#666', marginBottom: 24, textAlign: 'center' }}>
+              You can manage saved cards in your profile at any time.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 16 }}>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#a0b796',
+                  paddingVertical: 12,
+                  paddingHorizontal: 24,
+                  borderRadius: 8,
+                  marginRight: 8,
+                }}
+                onPress={() => {
+                  setShowSaveCardModal(false);
+                  clearCart();
+                  navigation.navigate('OrderStatus', { orderId: orderId });
+                }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Yes</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#eee',
+                  paddingVertical: 12,
+                  paddingHorizontal: 24,
+                  borderRadius: 8,
+                }}
+                onPress={async () => {
+                  // Delete the just-saved card from Supabase
+                  if (lastPaymentMethodId && user) {
+                    await supabase
+                      .from('payment_methods')
+                      .delete()
+                      .eq('user_id', user.id)
+                      .eq('stripe_payment_method_id', lastPaymentMethodId);
+                  }
+                  setShowSaveCardModal(false);
+                  clearCart();
+                  navigation.navigate('OrderStatus', { orderId: orderId });
+                }}
+              >
+                <Text style={{ color: '#333', fontWeight: '600', fontSize: 16 }}>No</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -1172,6 +1481,8 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 8,
     backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   backBtn: {
     marginBottom: 15,
@@ -1557,5 +1868,164 @@ const styles = StyleSheet.create({
     color: '#999',
     fontSize: 16,
     fontWeight: '500',
+  },
+  mapToggleButton: {
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#a0b796',
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 6,
+    backgroundColor: '#f8f9fa',
+  },
+  mapToggleText: {
+    color: '#a0b796',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  savedPaymentSection: {
+    marginBottom: 16,
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2efe7',
+  },
+  savedPaymentTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+  },
+  selectedPaymentMethod: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#a0b796',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  cardIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  paymentMethodInfo: {
+    flex: 1,
+  },
+  paymentMethodName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  paymentMethodExpiry: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 2,
+  },
+  changeText: {
+    color: '#a0b796',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  useNewCardButton: {
+    padding: 8,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    alignItems: 'center',
+  },
+  useNewCardText: {
+    color: '#666',
+    fontSize: 14,
+    textDecorationLine: 'underline',
+  },
+  paymentMethodsOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  paymentMethodsContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 320,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  paymentMethodsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  paymentMethodsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#333',
+  },
+  closeButton: {
+    color: '#a0b796',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  paymentMethodsList: {
+    flex: 1,
+    width: '100%',
+  },
+  paymentMethodOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#cdd7ce',
+  },
+  paymentMethodOptionSelected: {
+    backgroundColor: '#a0b796',
+  },
+  paymentMethodIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  paymentMethodDetails: {
+    flex: 1,
+  },
+  paymentMethodLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  paymentMethodSubtext: {
+    fontSize: 14,
+    color: '#666',
+  },
+  selectedCheckmark: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  paymentMethodsCancelButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginTop: 8,
+  },
+  paymentMethodsCancelText: {
+    color: '#999',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  noSavedMethodsText: {
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 16,
+    fontSize: 14,
+    fontStyle: 'italic',
   },
 });

@@ -12,6 +12,11 @@ const port = process.env.PORT || 3001;
 
 // Routes
 app.use(cors());
+
+// Stripe webhook route FIRST, with raw body
+app.use('/api/payment/webhook', express.raw({type: 'application/json'}));
+
+// All other routes use JSON body parser
 app.use(express.json());
 app.use('/api/payment', paymentRoutes);
 
