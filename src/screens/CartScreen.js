@@ -217,6 +217,7 @@ export default function CartScreen({ navigation, route }) {
 
         <View style={styles.divider} />
 
+        {/*
         <View style={styles.tipSection}>
           <Text style={styles.tipLabel}>Tip:</Text>
           <View style={styles.tipRow}>
@@ -253,6 +254,7 @@ export default function CartScreen({ navigation, route }) {
             </>
           )}
         </View>
+        */}
 
         <View style={styles.footer}>
           <View style={styles.calcRow}>
