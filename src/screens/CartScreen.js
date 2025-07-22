@@ -266,10 +266,6 @@ export default function CartScreen({ navigation, route }) {
             <Text style={styles.amount}>${Number(tax).toFixed(2)}</Text>
           </View>
           <View style={styles.calcRow}>
-            <Text style={styles.label}>Tip</Text>
-            <Text style={styles.amount}>${Number(tipValue).toFixed(2)}</Text>
-          </View>
-          <View style={styles.calcRow}>
             <Text style={styles.label}>Total</Text>
             <Text style={[styles.amount, { fontWeight: '700', fontSize: 16 }]}>${Number(total).toFixed(2)}</Text>
           </View>
