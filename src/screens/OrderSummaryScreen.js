@@ -39,7 +39,7 @@ export default function OrderSummaryScreen({ route, navigation }) {
     subtotal: initialSubtotal = 0, 
     tax: initialTax = 0, 
     tip: initialTipValue = 0,
-    amountInCents
+    amountInCents: routeAmountInCents
   } = routeParams;
 
   // Get cart items from context as fallback
@@ -47,11 +47,28 @@ export default function OrderSummaryScreen({ route, navigation }) {
   
   // Use route params if available, otherwise use cart context
   const items = initialItems.length > 0 ? initialItems : cartItems;
-  // Use values from route params if provided, otherwise fallback to calculation
-  const subtotal = initialSubtotal > 0 ? initialSubtotal : cartItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  // Use values from route params if provided, otherwise fallback to calculation using resolved items
+  const subtotal = initialSubtotal > 0 ? initialSubtotal : items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   const tax = route?.params?.tax !== undefined ? route.params.tax : (initialTax > 0 ? initialTax : subtotal * 0.13);
   const tip = route?.params?.tip !== undefined ? route.params.tip : (initialTipValue > 0 ? initialTipValue : 0);
   const total = subtotal + tax + tip;
+  
+  // Calculate amountInCents with proper fallback and consistent rounding
+  const roundedTotal = Math.round(total * 100) / 100; // Round to nearest cent
+  const amountInCents = routeAmountInCents || Math.round(roundedTotal * 100);
+
+  // Debug log for amount calculation
+  useEffect(() => {
+    console.log('💰 Amount calculations:', {
+      subtotal,
+      tax,
+      tip,
+      total,
+      roundedTotal,
+      amountInCents,
+      routeAmountInCents
+    });
+  }, [subtotal, tax, tip, total, roundedTotal, amountInCents, routeAmountInCents]);
 
   // Check if we have valid items, if not, redirect back to cart
   useEffect(() => {
@@ -296,7 +313,10 @@ export default function OrderSummaryScreen({ route, navigation }) {
         tip: tip,
         paymentMethodId: selectedPaymentMethod?.stripe_payment_method_id || null,
         userId: user?.id || null,
-        save_payment_method: wantsToSavePayment
+        save_payment_method: wantsToSavePayment,
+        amountInCents: amountInCents,
+        calculatedTotal: total,
+        roundedTotal: roundedTotal
       });
       
       const response = await fetch('https://grab-coffee-global.onrender.com/api/payment/create-payment-intent', {

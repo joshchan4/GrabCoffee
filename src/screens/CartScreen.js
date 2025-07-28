@@ -37,7 +37,8 @@ export default function CartScreen({ navigation, route }) {
   const tipValue = selectedTip === 'custom' ? parseFloat(customTip || 0) : (selectedTip / 100) * subtotal;
   const tax = subtotal * 0.13;
   const total = subtotal + tax + tipValue;
-  const roundedTotal = Number(total.toFixed(2));
+  // Use consistent rounding: round to nearest cent, then convert to cents
+  const roundedTotal = Math.round(total * 100) / 100;
   const amountInCents = Math.round(roundedTotal * 100);
 
   useEffect(() => {

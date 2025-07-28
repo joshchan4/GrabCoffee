@@ -44,15 +44,49 @@ router.post('/create-payment-intent', async (req, res) => {
       return res.status(400).json({ error: 'No items provided.' });
     }
 
+    // Validate required fields
+    if (!customerName || !customerName.trim()) {
+      return res.status(400).json({ error: 'Customer name is required.' });
+    }
+
+    if (method === 'delivery' && (!address || !address.trim())) {
+      return res.status(400).json({ error: 'Delivery address is required.' });
+    }
+
+    // Validate amountInCents
+    if (!amountInCents || amountInCents <= 0) {
+      // Fallback: calculate from items if amountInCents is missing
+      const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const calculatedTotal = subtotal + tax + tip;
+      const calculatedAmountInCents = Math.round(calculatedTotal * 100);
+      
+      console.log('⚠️ amountInCents missing, calculating fallback:', {
+        subtotal,
+        tax,
+        tip,
+        calculatedTotal,
+        calculatedAmountInCents
+      });
+      
+      if (calculatedAmountInCents <= 0) {
+        console.error('❌ Invalid calculated amount:', calculatedAmountInCents);
+        return res.status(400).json({ error: 'Missing required param: amount.' });
+      }
+      
+      totalAmountInCents = calculatedAmountInCents;
+    } else {
+      totalAmountInCents = amountInCents;
+    }
+
     // Calculate ETA based on method
     const DEFAULT_PICKUP_ETA_MINUTES = 15;
     const DEFAULT_DELIVERY_ETA_MINUTES = 30;
     const etaMinutes = method === 'pickup' ? DEFAULT_PICKUP_ETA_MINUTES : DEFAULT_DELIVERY_ETA_MINUTES;
 
-    // 1. Calculate subtotal and total (in cents)
-    const totalAmountInCents = amountInCents;
+    // Calculate subtotal for later use in order creation
+    const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-    console.log('🔔 Creating PaymentIntent for:', totalAmountInCents, 'CAD');
+    console.log('🔔 Creating PaymentIntent for:', totalAmountInCents, 'cents (CAD)');
 
     // 2. Handle customer creation/retrieval for logged-in users
     let customerId = null;

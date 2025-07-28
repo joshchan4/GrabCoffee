@@ -15,6 +15,7 @@ import {
 import { supabase } from '../utils/supabase'
 import * as Haptics from 'expo-haptics'
 import * as WebBrowser from 'expo-web-browser'
+import 'react-native-url-polyfill/auto'
 
 export default function SignupScreen({ route, navigation }) {
   const { returnScreen } = route.params || {};
@@ -143,58 +144,79 @@ export default function SignupScreen({ route, navigation }) {
         
         if (result.type === 'success') {
           // The user successfully completed the OAuth flow
-          console.log('OAuth flow completed successfully');
+          console.log('✅ OAuth flow completed successfully');
+          console.log('🔗 Redirect URL:', result.url);
 
-          const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(result.url);
-
-            if (exchangeError) {
-              console.error('❌ Failed to exchange code for session:', exchangeError);
-              Alert.alert('Login Error', 'Authentication completed but session could not be created.');
+          try {
+            // Extract the URL parameters from the callback URL
+            const url = new URL(result.url);
+            const code = url.searchParams.get('code');
+            
+            if (!code) {
+              console.error('❌ No authorization code found in callback URL');
+              Alert.alert('Signup Error', 'No authorization code received from Google.');
               return;
             }
 
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            console.log('🔑 Authorization code extracted:', code.substring(0, 20) + '...');
 
-          // Check if user is now authenticated
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
-            // Create profile for new user
-            try {
-              const { error: profileError } = await supabase
-                .from('profiles')
-                .insert([
-                  {
-                    id: session.user.id,
-                    full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'User',
-                    email: session.user.email,
-                    created_at: new Date().toISOString(),
-                  }
-                ])
-                .single();
+            // Exchange the code for a session
+            const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(result.url);
 
-              if (profileError && profileError.code !== '23505') { // Ignore duplicate key errors
-                console.error('Profile creation error:', profileError);
-              }
-            } catch (profileError) {
-              console.error('Profile creation error:', profileError);
+            if (exchangeError) {
+              console.error('❌ Failed to exchange code for session:', exchangeError);
+              Alert.alert('Signup Error', `Authentication failed: ${exchangeError.message}`);
+              return;
             }
 
-            Alert.alert(
-              'Welcome to Grab Coffee!',
-              'Your account has been created successfully with Google.',
-              [
-                {
-                  text: 'OK',
-                  onPress: () => {
-                    if (returnScreen) {
-                      navigation.navigate(returnScreen);
-                    } else {
-                      navigation.goBack();
+            if (sessionData?.session) {
+              console.log('✅ Session created successfully:', sessionData.session.user.email);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+              // Create profile for new user
+              try {
+                const { error: profileError } = await supabase
+                  .from('profiles')
+                  .insert([
+                    {
+                      id: sessionData.session.user.id,
+                      full_name: sessionData.session.user.user_metadata?.full_name || sessionData.session.user.user_metadata?.name || 'User',
+                      email: sessionData.session.user.email,
+                      created_at: new Date().toISOString(),
+                    }
+                  ])
+                  .single();
+
+                if (profileError && profileError.code !== '23505') { // Ignore duplicate key errors
+                  console.error('Profile creation error:', profileError);
+                }
+              } catch (profileError) {
+                console.error('Profile creation error:', profileError);
+              }
+
+              Alert.alert(
+                'Welcome to Grab Coffee!',
+                'Your account has been created successfully with Google.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      if (returnScreen) {
+                        navigation.navigate(returnScreen);
+                      } else {
+                        navigation.goBack();
+                      }
                     }
                   }
-                }
-              ]
-            );
+                ]
+              );
+            } else {
+              console.log('⚠️ No session in exchange response');
+              Alert.alert('Signup Error', 'Authentication completed but no session was created.');
+            }
+          } catch (urlError) {
+            console.error('❌ Error processing callback URL:', urlError);
+            Alert.alert('Signup Error', 'Failed to process authentication response.');
           }
         } else if (result.type === 'cancel') {
           console.log('OAuth flow was cancelled by user');
@@ -242,58 +264,79 @@ export default function SignupScreen({ route, navigation }) {
         
         if (result.type === 'success') {
           // The user successfully completed the OAuth flow
-          console.log('OAuth flow completed successfully');
+          console.log('✅ OAuth flow completed successfully');
+          console.log('🔗 Redirect URL:', result.url);
 
-          const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(result.url);
-
-          if (exchangeError) {
-            console.error('❌ Failed to exchange code for session:', exchangeError);
-            Alert.alert('Login Error', 'Authentication completed but session could not be created.');
-            return;
-          }
-
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          
-          // Check if user is now authenticated
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
-            // Create profile for new user
-            try {
-              const { error: profileError } = await supabase
-                .from('profiles')
-                .insert([
-                  {
-                    id: session.user.id,
-                    full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || 'User',
-                    email: session.user.email,
-                    created_at: new Date().toISOString(),
-                  }
-                ])
-                .single();
-
-              if (profileError && profileError.code !== '23505') { // Ignore duplicate key errors
-                console.error('Profile creation error:', profileError);
-              }
-            } catch (profileError) {
-              console.error('Profile creation error:', profileError);
+          try {
+            // Extract the URL parameters from the callback URL
+            const url = new URL(result.url);
+            const code = url.searchParams.get('code');
+            
+            if (!code) {
+              console.error('❌ No authorization code found in callback URL');
+              Alert.alert('Signup Error', 'No authorization code received from Apple.');
+              return;
             }
 
-            Alert.alert(
-              'Welcome to Grab Coffee!',
-              'Your account has been created successfully with Apple.',
-              [
-                {
-                  text: 'OK',
-                  onPress: () => {
-                    if (returnScreen) {
-                      navigation.navigate(returnScreen);
-                    } else {
-                      navigation.goBack();
+            console.log('🔑 Authorization code extracted:', code.substring(0, 20) + '...');
+
+            // Exchange the code for a session
+            const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(result.url);
+
+            if (exchangeError) {
+              console.error('❌ Failed to exchange code for session:', exchangeError);
+              Alert.alert('Signup Error', `Authentication failed: ${exchangeError.message}`);
+              return;
+            }
+
+            if (sessionData?.session) {
+              console.log('✅ Session created successfully:', sessionData.session.user.email);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              
+              // Create profile for new user
+              try {
+                const { error: profileError } = await supabase
+                  .from('profiles')
+                  .insert([
+                    {
+                      id: sessionData.session.user.id,
+                      full_name: sessionData.session.user.user_metadata?.full_name || sessionData.session.user.user_metadata?.name || 'User',
+                      email: sessionData.session.user.email,
+                      created_at: new Date().toISOString(),
+                    }
+                  ])
+                  .single();
+
+                if (profileError && profileError.code !== '23505') { // Ignore duplicate key errors
+                  console.error('Profile creation error:', profileError);
+                }
+              } catch (profileError) {
+                console.error('Profile creation error:', profileError);
+              }
+
+              Alert.alert(
+                'Welcome to Grab Coffee!',
+                'Your account has been created successfully with Apple.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      if (returnScreen) {
+                        navigation.navigate(returnScreen);
+                      } else {
+                        navigation.goBack();
+                      }
                     }
                   }
-                }
-              ]
-            );
+                ]
+              );
+            } else {
+              console.log('⚠️ No session in exchange response');
+              Alert.alert('Signup Error', 'Authentication completed but no session was created.');
+            }
+          } catch (urlError) {
+            console.error('❌ Error processing callback URL:', urlError);
+            Alert.alert('Signup Error', 'Failed to process authentication response.');
           }
         } else if (result.type === 'cancel') {
           console.log('OAuth flow was cancelled by user');

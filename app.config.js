@@ -6,8 +6,18 @@ export default {
     platforms: ["ios", "android"],
     version: "1.0.0",
     scheme: "grabcoffee",
+    icon: "./assets/icon.png",
+    splash: {
+      image: "./assets/splash.png",
+      resizeMode: "contain",
+      backgroundColor: "#ffffff"
+    },
+    orientation: "portrait",
+    userInterfaceStyle: "automatic",
     ios: {
       bundleIdentifier: "com.coffee.grab",
+      icon: "./assets/icon.png",
+      supportsTablet: true,
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSLocationWhenInUseUsageDescription: "This app uses your location to show your distance and route to the pickup location.",
@@ -24,6 +34,11 @@ export default {
     },
     android: {
       package: "com.coffee.grab",
+      icon: "./assets/icon.png",
+      adaptiveIcon: {
+        foregroundImage: "./assets/icon.png",
+        backgroundColor: "#ffffff"
+      },
       intentFilters: [
         {
           action: "VIEW",

@@ -16,6 +16,7 @@ import { supabase } from '../utils/supabase'
 import { debugAuth, testOAuthProvider, testUrlScheme, testCompleteOAuthFlow } from '../utils/authDebug'
 import * as Haptics from 'expo-haptics'
 import * as WebBrowser from 'expo-web-browser'
+import 'react-native-url-polyfill/auto'
 
 export default function LoginScreen({ route, navigation }) {
   const { returnScreen } = route.params || {};
@@ -121,56 +122,56 @@ export default function LoginScreen({ route, navigation }) {
             console.log('✅ OAuth flow completed successfully');
             console.log('🔗 Redirect URL:', result.url);
 
-            const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(result.url);
+            try {
+              // Extract the URL parameters from the callback URL
+              const url = new URL(result.url);
+              const code = url.searchParams.get('code');
+              
+              if (!code) {
+                console.error('❌ No authorization code found in callback URL');
+                Alert.alert('Login Error', 'No authorization code received from Google.');
+                return;
+              }
 
-            if (exchangeError) {
-              console.error('❌ Failed to exchange code for session:', exchangeError);
-              Alert.alert('Login Error', 'Authentication completed but session could not be created.');
-              return;
-            }
-            
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              console.log('🔑 Authorization code extracted:', code.substring(0, 20) + '...');
 
-            const { session } = sessionData;
-            
-            // Wait a moment for Supabase to process the session
-            setTimeout(async () => {
-              try {
-                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+              // Exchange the code for a session
+              const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(result.url);
+
+              if (exchangeError) {
+                console.error('❌ Failed to exchange code for session:', exchangeError);
+                Alert.alert('Login Error', `Authentication failed: ${exchangeError.message}`);
+                return;
+              }
+              
+              if (sessionData?.session) {
+                console.log('✅ Session created successfully:', sessionData.session.user.email);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 
-                if (sessionError) {
-                  console.error('❌ Session error:', sessionError);
-                  Alert.alert('Login Error', 'Failed to get session after authentication.');
-                  return;
-                }
-                
-                if (session) {
-                  console.log('✅ User authenticated successfully:', session.user.email);
-                  Alert.alert(
-                    'Welcome back!',
-                    'You have successfully logged in with Google.',
-                    [
-                      {
-                        text: 'OK',
-                        onPress: () => {
-                          if (returnScreen) {
-                            navigation.navigate(returnScreen);
-                          } else {
-                            navigation.goBack();
-                          }
+                Alert.alert(
+                  'Welcome back!',
+                  'You have successfully logged in with Google.',
+                  [
+                    {
+                      text: 'OK',
+                      onPress: () => {
+                        if (returnScreen) {
+                          navigation.navigate(returnScreen);
+                        } else {
+                          navigation.goBack();
                         }
                       }
-                    ]
-                  );
-                } else {
-                  console.log('⚠️ No session found after OAuth');
-                  Alert.alert('Login Error', 'Authentication completed but no session was created.');
-                }
-              } catch (error) {
-                console.error('❌ Error checking session:', error);
-                Alert.alert('Login Error', 'Failed to verify authentication.');
+                    }
+                  ]
+                );
+              } else {
+                console.log('⚠️ No session in exchange response');
+                Alert.alert('Login Error', 'Authentication completed but no session was created.');
               }
-            }, 1000);
+            } catch (urlError) {
+              console.error('❌ Error processing callback URL:', urlError);
+              Alert.alert('Login Error', 'Failed to process authentication response.');
+            }
             
           } else if (result.type === 'cancel') {
             console.log('❌ OAuth flow was cancelled by user');
@@ -237,56 +238,56 @@ export default function LoginScreen({ route, navigation }) {
           console.log('✅ OAuth flow completed successfully');
           console.log('🔗 Redirect URL:', result.url);
 
-          const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(result.url);
+          try {
+            // Extract the URL parameters from the callback URL
+            const url = new URL(result.url);
+            const code = url.searchParams.get('code');
+            
+            if (!code) {
+              console.error('❌ No authorization code found in callback URL');
+              Alert.alert('Login Error', 'No authorization code received from Apple.');
+              return;
+            }
 
-          if (exchangeError) {
-            console.error('❌ Failed to exchange code for session:', exchangeError);
-            Alert.alert('Login Error', 'Authentication completed but session could not be created.');
-            return;
-          }
-          
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            console.log('🔑 Authorization code extracted:', code.substring(0, 20) + '...');
 
-          const { session } = sessionData;
-          
-          // Wait a moment for Supabase to process the session
-          setTimeout(async () => {
-            try {
-              const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            // Exchange the code for a session
+            const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(result.url);
+
+            if (exchangeError) {
+              console.error('❌ Failed to exchange code for session:', exchangeError);
+              Alert.alert('Login Error', `Authentication failed: ${exchangeError.message}`);
+              return;
+            }
+            
+            if (sessionData?.session) {
+              console.log('✅ Session created successfully:', sessionData.session.user.email);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               
-              if (sessionError) {
-                console.error('❌ Session error:', sessionError);
-                Alert.alert('Login Error', 'Failed to get session after authentication.');
-                return;
-              }
-              
-              if (session) {
-                console.log('✅ User authenticated successfully:', session.user.email);
-                Alert.alert(
-                  'Welcome back!',
-                  'You have successfully logged in with Apple.',
-                  [
-                    {
-                      text: 'OK',
-                      onPress: () => {
-                        if (returnScreen) {
-                          navigation.navigate(returnScreen);
-                        } else {
-                          navigation.goBack();
-                        }
+              Alert.alert(
+                'Welcome back!',
+                'You have successfully logged in with Apple.',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      if (returnScreen) {
+                        navigation.navigate(returnScreen);
+                      } else {
+                        navigation.goBack();
                       }
                     }
-                  ]
-                );
-              } else {
-                console.log('⚠️ No session found after OAuth');
-                Alert.alert('Login Error', 'Authentication completed but no session was created.');
-              }
-            } catch (error) {
-              console.error('❌ Error checking session:', error);
-              Alert.alert('Login Error', 'Failed to verify authentication.');
+                  }
+                ]
+              );
+            } else {
+              console.log('⚠️ No session in exchange response');
+              Alert.alert('Login Error', 'Authentication completed but no session was created.');
             }
-          }, 1000);
+          } catch (urlError) {
+            console.error('❌ Error processing callback URL:', urlError);
+            Alert.alert('Login Error', 'Failed to process authentication response.');
+          }
           
         } else if (result.type === 'cancel') {
           console.log('❌ OAuth flow was cancelled by user');
