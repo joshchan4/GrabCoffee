@@ -61,14 +61,6 @@ export default {
     },
     plugins: [
       [
-        "@stripe/stripe-react-native",
-        {
-          merchantIdentifier: "merchant.com.grabcoffee",
-          enableGooglePay: true,
-          enableApplePay: true,
-        },
-      ],
-      [
         "expo-image-picker",
         {
           photosPermission: "The app accesses your photos to let you share them with your friends.",

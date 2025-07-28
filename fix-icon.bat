@@ -5,7 +5,7 @@ echo =================================================
 echo.
 
 echo Step 1: Clearing Expo development cache...
-call expo r -c
+call npx expo start --clear
 echo   ✓ Expo cache cleared
 echo.
 

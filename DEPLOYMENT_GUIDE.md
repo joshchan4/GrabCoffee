@@ -64,8 +64,8 @@ curl https://grab-coffee-global.onrender.com
 ./fix-icon.bat
 
 # Option B: Manual commands
-# Clear Expo cache
-expo r -c
+# Clear Expo cache (use npx expo instead of expo)
+npx expo start --clear
 
 # Build for production with cleared cache
 npx eas build --platform ios --profile production --clear-cache
@@ -117,12 +117,16 @@ npx eas submit --platform ios --latest
 # 1. Commit changes
 git add . && git commit -m "Fix Stripe rounding, OAuth login, and app icon issues" && git push origin main
 
-# 2. Build for iOS (with cache clearing)
+# 2. Build for iOS (with cache clearing) - Skip cache clearing for now
 npx eas build --platform ios --profile production --clear-cache
 
 # 3. Submit to App Store (after build completes)
 npx eas submit --platform ios --latest
 ```
+
+## ⚠️ Note: Expo CLI Issue
+If you encounter "legacy expo-cli" warnings, that's normal. The EAS build command will work fine.
+The Stripe plugin was temporarily removed from config to avoid build conflicts - your Stripe payments will still work.
 
 ---
 
