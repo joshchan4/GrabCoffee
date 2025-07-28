@@ -38,7 +38,7 @@ function makeHttpsRequest(url, options, data = null) {
 router.post('/create-payment-intent', async (req, res) => {
   try {
     console.log('Received save_payment_method:', req.body.save_payment_method);
-    const { items, customerName, address, method, tax = 0, tip = 0, order_time, paymentMethodId, userId } = req.body;
+    const { items, customerName, address, method, tax = 0, tip = 0, order_time, paymentMethodId, userId, amountInCents } = req.body;
 
     if (!items || items.length === 0) {
       return res.status(400).json({ error: 'No items provided.' });
@@ -50,9 +50,7 @@ router.post('/create-payment-intent', async (req, res) => {
     const etaMinutes = method === 'pickup' ? DEFAULT_PICKUP_ETA_MINUTES : DEFAULT_DELIVERY_ETA_MINUTES;
 
     // 1. Calculate subtotal and total (in cents)
-    const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const total = subtotal + tax + tip;
-    const totalAmountInCents = Math.round(total * 100);
+    const totalAmountInCents = amountInCents;
 
     console.log('🔔 Creating PaymentIntent for:', totalAmountInCents, 'CAD');
 

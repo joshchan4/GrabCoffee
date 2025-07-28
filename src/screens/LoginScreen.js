@@ -120,8 +120,18 @@ export default function LoginScreen({ route, navigation }) {
           if (result.type === 'success') {
             console.log('✅ OAuth flow completed successfully');
             console.log('🔗 Redirect URL:', result.url);
+
+            const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(result.url);
+
+            if (exchangeError) {
+              console.error('❌ Failed to exchange code for session:', exchangeError);
+              Alert.alert('Login Error', 'Authentication completed but session could not be created.');
+              return;
+            }
             
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+            const { session } = sessionData;
             
             // Wait a moment for Supabase to process the session
             setTimeout(async () => {
@@ -226,8 +236,18 @@ export default function LoginScreen({ route, navigation }) {
         if (result.type === 'success') {
           console.log('✅ OAuth flow completed successfully');
           console.log('🔗 Redirect URL:', result.url);
+
+          const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(result.url);
+
+          if (exchangeError) {
+            console.error('❌ Failed to exchange code for session:', exchangeError);
+            Alert.alert('Login Error', 'Authentication completed but session could not be created.');
+            return;
+          }
           
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+          const { session } = sessionData;
           
           // Wait a moment for Supabase to process the session
           setTimeout(async () => {

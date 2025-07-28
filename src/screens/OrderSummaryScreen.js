@@ -38,7 +38,8 @@ export default function OrderSummaryScreen({ route, navigation }) {
     items: initialItems = [], 
     subtotal: initialSubtotal = 0, 
     tax: initialTax = 0, 
-    tip: initialTipValue = 0 
+    tip: initialTipValue = 0,
+    amountInCents
   } = routeParams;
 
   // Get cart items from context as fallback
@@ -310,7 +311,8 @@ export default function OrderSummaryScreen({ route, navigation }) {
           tip: tip,
           paymentMethodId: selectedPaymentMethod?.stripe_payment_method_id || null,
           userId: user?.id || null,
-          save_payment_method: wantsToSavePayment
+          save_payment_method: wantsToSavePayment,
+          amountInCents: amountInCents,
         }),
       });
       

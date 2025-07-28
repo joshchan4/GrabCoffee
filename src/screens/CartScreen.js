@@ -37,6 +37,8 @@ export default function CartScreen({ navigation, route }) {
   const tipValue = selectedTip === 'custom' ? parseFloat(customTip || 0) : (selectedTip / 100) * subtotal;
   const tax = subtotal * 0.13;
   const total = subtotal + tax + tipValue;
+  const roundedTotal = Number(total.toFixed(2));
+  const amountInCents = Math.round(roundedTotal * 100);
 
   useEffect(() => {
     Animated.timing(animatedTotal, {
@@ -278,6 +280,8 @@ export default function CartScreen({ navigation, route }) {
                 subtotal,
                 tax,
                 tip: tipValue,
+                total: roundedTotal,
+                amountInCents,
               });
             }}
           >

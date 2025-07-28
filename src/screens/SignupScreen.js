@@ -119,7 +119,7 @@ export default function SignupScreen({ route, navigation }) {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: 'grabcoffee://signup-callback',
+          redirectTo: 'grabcoffee://login-callback',
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -138,14 +138,23 @@ export default function SignupScreen({ route, navigation }) {
       if (data?.url) {
         const result = await WebBrowser.openAuthSessionAsync(
           data.url, 
-          'grabcoffee://signup-callback'
+          'grabcoffee://login-callback'
         );
         
         if (result.type === 'success') {
           // The user successfully completed the OAuth flow
           console.log('OAuth flow completed successfully');
+
+          const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(result.url);
+
+            if (exchangeError) {
+              console.error('❌ Failed to exchange code for session:', exchangeError);
+              Alert.alert('Login Error', 'Authentication completed but session could not be created.');
+              return;
+            }
+
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          
+
           // Check if user is now authenticated
           const { data: { session } } = await supabase.auth.getSession();
           if (session) {
@@ -210,7 +219,7 @@ export default function SignupScreen({ route, navigation }) {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'apple',
         options: {
-          redirectTo: 'grabcoffee://signup-callback',
+          redirectTo: 'grabcoffee://login-callback',
           queryParams: {
             response_mode: 'form_post',
           },
@@ -228,12 +237,21 @@ export default function SignupScreen({ route, navigation }) {
       if (data?.url) {
         const result = await WebBrowser.openAuthSessionAsync(
           data.url, 
-          'grabcoffee://signup-callback'
+          'grabcoffee://login-callback'
         );
         
         if (result.type === 'success') {
           // The user successfully completed the OAuth flow
           console.log('OAuth flow completed successfully');
+
+          const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(result.url);
+
+          if (exchangeError) {
+            console.error('❌ Failed to exchange code for session:', exchangeError);
+            Alert.alert('Login Error', 'Authentication completed but session could not be created.');
+            return;
+          }
+
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           
           // Check if user is now authenticated
